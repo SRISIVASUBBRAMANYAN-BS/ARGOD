@@ -1,587 +1,791 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>GRAPHITE SKETCH AR</title>
-    <style>
-      :root{
-        --brand:#0ea5e9;         /* primary */
-        --accent:#f59e0b;        /* accent */
-        --bg:#0b0b10;            /* neutral 1 */
-        --fg:#e5e7eb;            /* neutral 2 */
-        --muted:#9ca3af;         /* neutral 3 */
-      }
-      html,body{height:100%;background:var(--bg);color:var(--fg);margin:0;font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";}
-      .app{position:fixed;inset:0;overflow:hidden;}
-      video#camera{
-        position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-        background:#000;
-        transform:none !important; -webkit-transform:none !important; /* ensure non-mirrored camera */
-      }
-      /* UI */
-      .hud{
-        position:absolute; inset:0; pointer-events:none; display:flex; flex-direction:column; justify-content:space-between;
-        padding:16px;
-        background: radial-gradient(1200px 600px at 50% -10%, rgba(14,165,233,0.15), transparent 60%);
-      }
-      header{
-        pointer-events:none; text-align:center; margin-top:8px;
-      }
-      .title{
-        display:inline-block; font-weight:800; letter-spacing:0.04em; text-transform:uppercase;
-        font-size: clamp(18px, 4.5vw, 28px); padding:8px 14px; border-radius:999px;
-        background:rgba(14,165,233,0.18); border:1px solid rgba(14,165,233,0.35); color:#e6f6ff; text-shadow:0 1px 0 rgba(0,0,0,.4);
-        box-shadow:0 0 24px rgba(14,165,233,.25) inset, 0 8px 30px rgba(14,165,233,0.1);
-      }
-      .status{
-        pointer-events:none; text-align:center; color:var(--muted); font-size:14px; margin:8px 0 0;
-        text-shadow:0 1px 2px rgba(0,0,0,.5);
-      }
-      .controls{
-        position:absolute; left:50%; bottom:20px; transform:translateX(-50%); display:flex; gap:12px; pointer-events:auto;
-      }
-      .btn{
-        appearance:none; border:none; cursor:pointer;
-        background:linear-gradient(180deg, rgba(14,165,233,0.85), rgba(14,165,233,0.55));
-        color:#001219; font-weight:700; letter-spacing:.02em;
-        padding:14px 18px; border-radius:12px; box-shadow: 0 10px 30px rgba(14,165,233,.35);
-      }
-      .btn:active{ transform:translateY(1px); }
-      .btn.bell{ display:none; align-items:center; gap:8px; }
-      .btn.bell svg{ width:18px; height:18px; }
+<head>
+  <meta charset="utf-8" />
+  <title>GRAPHITE SKETCH AR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* Minimal, accessible, mobile-first styles using a simple 4-color palette:
+       - Primary: #0ea5e9 (sky-500)
+       - Neutral dark: #0b0f14
+       - Neutral light: #f8fafc
+       - Accent: #f97316 (orange-500)
+       - Danger: #ef4444 (red-500) [optional]
+    */
 
-      /* Guide frame while scanning */
-      .guide{
-        position:absolute; left:50%; top:50%; width:min(70vw, 360px); aspect-ratio:0.75; transform:translate(-50%,-50%);
-        border:2px dashed rgba(229,231,235,.25); border-radius:12px;
-      }
+    :root {
+      --bg: #0b0f14;
+      --fg: #f8fafc;
+      --primary: #0ea5e9;
+      --accent: #f97316;
+      --muted: #1f2937;
+      --overlay: rgba(0,0,0,0.35);
+      --success: #10b981;
+      --danger: #ef4444;
 
-      /* AR overlay container anchored to match box */
-      .ar-layer{
-        position:absolute; left:0; top:0; pointer-events:none;
-        will-change: transform, width, height, opacity; opacity:0; transition:opacity .35s ease;
-      }
-      .ar-layer.active{ opacity:1; }
-      .ar-layer img.gif{
-        position:absolute; inset:0; width:100%; height:100%;
-        object-fit:cover; display:none; border-radius:10px; background:rgba(0,0,0,.2);
-      }
+      --radius: 0.6rem;
+    }
 
-      /* End screen */
-      .end{
-        position:absolute; inset:0; display:none; place-items:center; background:rgba(0,0,0,.6); backdrop-filter: blur(6px);
-      }
-      .end.show{ display:grid; }
-      .end .panel{
-        background:linear-gradient(180deg, rgba(2,6,23,0.8), rgba(2,6,23,0.6));
-        border:1px solid rgba(229,231,235,.14);
-        box-shadow:0 30px 80px rgba(0,0,0,.5), inset 0 0 60px rgba(14,165,233,.08);
-        color:var(--fg); padding:22px 24px; border-radius:16px; text-align:center; max-width:90vw;
-      }
-      .end h2{ margin:0 0 8px; font-size:20px; letter-spacing:.02em; }
-      .end p{ margin:0 0 16px; color:var(--muted); font-size:14px; }
-      .end .btn{ background:linear-gradient(180deg, rgba(245,158,11,0.9), rgba(245,158,11,0.6)); }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Ubuntu, Cantarell, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
 
-      /* Hidden working canvases */
-      canvas#work, canvas#tmpl{ display:none; }
+    .container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100svh;
+    }
 
-      /* Small sparkle when target locks */
-      .spark{
-        position:absolute; width:8px; height:8px; border-radius:999px; background:#fff;
-        box-shadow:0 0 12px #fff, 0 0 30px var(--brand), 0 0 60px var(--accent);
-        animation: pop .8s ease forwards;
-      }
-      @keyframes pop{
-        0%{ transform:scale(.2); opacity:0; }
-        40%{ transform:scale(1.6); opacity:1; }
-        100%{ transform:scale(1); opacity:.0; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="app" id="app">
-       Camera 
-      <video id="camera" muted playsinline autoplay></video>
+    header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #111827;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0a0f15;
+    }
 
-       Hidden target reference image (for detection).
-           Replace src with your exact target reference if different. 
-      <img id="refImg" alt="Target reference" crossOrigin="anonymous"
-           src="graphite-target.png"
-           style="position:absolute; left:-9999px; top:-9999px; width:320px; height:auto;" />
+    header h1 {
+      font-size: 1rem;
+      margin: 0;
+      color: var(--fg);
+    }
 
-       UI HUD 
-      <div class="hud">
-        <header>
-          <div class="title">Welcome to GRAPHITE SKETCH</div>
-          <div class="status" id="status">Tap Start to allow back camera. Keep the target fully inside the frame.</div>
-        </header>
-        <div class="guide" id="guide"></div>
-        <div class="controls">
-          <button class="btn" id="startBtn" style="display:inline-block;">Start AR</button>
-          <button class="btn" id="stopBtn" style="display:none;">Stop</button>
-          <button class="btn bell" id="bellBtn" aria-label="Ring bell to start" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 2a1 1 0 0 1 1 1v.28a7 7 0 0 1 5 6.72v3.3l1.38 2.77A1 1 0 0 1 18.5 18h-13a1 1 0 0 1-.88-1.43L6 13.3V10a7 7 0 0 1 5-6.72V3a1 1 0 0 1 1-1Zm0 20a3 3 0 0 1-3-3h6a3 3 0 0 1-3 3Z"/>
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0.75rem;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3/4;  /* Camera-friendly default for phones */
+      background: #0a0f15;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid #111827;
+    }
+
+    video#camera {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #000;
+    }
+
+    /* Processing canvas hidden; used for tracking */
+    canvas#process {
+      display: none;
+    }
+
+    /* Overlay container positioned over video for AR content */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    /* Tracked region overlay; we transform this box to match marker position/size */
+    .tracked-box {
+      position: absolute;
+      transform-origin: top left;
+      pointer-events: none;
+      will-change: transform;
+      /* Helpful visual debugging (toggle on/off): */
+      /* outline: 2px dashed rgba(14,165,233,0.7); */
+    }
+
+    /* GIF overlays inside the tracked region */
+    .gif-layer {
+      position: absolute;
+      inset: 0;
+      display: none; /* shown after aarti */
+      pointer-events: none;
+    }
+    .gif-layer img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* Fill the tracked image region */
+      pointer-events: none;
+    }
+
+    /* UI Panel */
+    .panel {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button, .icon-btn {
+      border: 1px solid #1f2937;
+      background: #0d1720;
+      color: var(--fg);
+      border-radius: var(--radius);
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover, .icon-btn:hover {
+      background: #0f2130;
+      border-color: #243142;
+    }
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.4rem;
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+    }
+    .icon-btn[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      background: #0a1722;
+      border: 1px solid #0e2231;
+    }
+
+    .hint {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+    }
+
+    /* Bell icon wrapper shown only when target stable */
+    .bell-wrap {
+      display: none;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .bell-wrap.show {
+      display: inline-flex;
+    }
+
+    /* Aarti prelude: rotating lamp around center of tracked box */
+    .aarti {
+      position: absolute;
+      inset: 0;
+      display: none; /* shown during prelude */
+      pointer-events: none;
+    }
+
+    .lamp-orbit {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 120%;
+      height: 120%;
+      transform: translate(-50%,-50%);
+      animation: orbit 2s linear infinite;
+      transform-origin: center;
+      pointer-events: none;
+    }
+
+    @keyframes orbit {
+      from { transform: translate(-50%,-50%) rotate(0deg); }
+      to { transform: translate(-50%,-50%) rotate(360deg); }
+    }
+
+    .lamp {
+      position: absolute;
+      left: 50%;
+      top: 0%;
+      transform: translate(-50%, -50%);
+      width: 36px;
+      height: 36px;
+      pointer-events: none;
+      /* glow */
+      filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.85)) drop-shadow(0 0 12px rgba(249, 115, 22, 0.55));
+    }
+
+    /* Falling flowers */
+    .flowers {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .petal {
+      position: absolute;
+      top: -10%;
+      width: 12px;
+      height: 12px;
+      background: radial-gradient(circle at 30% 30%, #fecaca 30%, #f87171 70%);
+      border-radius: 50% 50% 50% 50%;
+      opacity: 0.9;
+      animation: fall 2.2s linear forwards;
+      transform: rotate(0deg);
+    }
+    @keyframes fall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(120%) rotate(180deg); opacity: 0.1; }
+    }
+
+    /* Rising smoke */
+    .smoke {
+      position: absolute;
+      left: 50%;
+      bottom: -10%;
+      width: 60%;
+      height: 40%;
+      transform: translateX(-50%);
+      opacity: 0.0;
+      filter: blur(6px);
+      background: radial-gradient(ellipse at 50% 80%, rgba(148,163,184,0.25), rgba(148,163,184,0.05), transparent 70%);
+      animation: smokeUp 2s ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes smokeUp {
+      0%   { transform: translate(-50%, 10%); opacity: 0.0; }
+      40%  { opacity: 0.25; }
+      100% { transform: translate(-50%, -30%); opacity: 0.10; }
+    }
+
+    footer {
+      padding: 0.75rem 1rem;
+      border-top: 1px solid #111827;
+      font-size: 0.85rem;
+      color: #cbd5e1;
+    }
+
+    /* Small screens controls stacking */
+    @media (max-width: 480px) {
+      header h1 { font-size: 0.95rem; }
+      .panel { gap: 0.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>GRAPHITE SKETCH</h1>
+      <div class="badge">
+        <span id="detStatus">Camera idle</span>
+      </div>
+    </header>
+
+    <main>
+      <div class="stage" id="stage">
+        <video id="camera" playsinline autoplay muted></video>
+        <canvas id="process"></canvas>
+
+         Overlay root 
+        <div class="overlay" id="overlay">
+           The tracked region box that will be transformed to match the marker 
+          <div class="tracked-box" id="trackedBox" aria-hidden="true">
+             Prelude: aarti lamp orbit, flowers and smoke 
+            <div class="aarti" id="aarti">
+              <div class="lamp-orbit" aria-hidden="true">
+                 Lamp icon (inline SVG) 
+                <svg class="lamp" viewBox="0 0 64 64" aria-hidden="true">
+                  <defs>
+                    <radialGradient id="flame" cx="50%" cy="40%" r="50%">
+                      <stop offset="0%" stop-color="#fff3c4"/>
+                      <stop offset="60%" stop-color="#fde68a"/>
+                      <stop offset="100%" stop-color="#f97316"/>
+                    </radialGradient>
+                  </defs>
+                   diya base 
+                  <path d="M8 40c0 8 10 14 24 14s24-6 24-14c0-2-2-4-6-4H14c-4 0-6 2-6 4z" fill="#7c2d12"/>
+                  <ellipse cx="32" cy="40" rx="22" ry="6" fill="#b45309" opacity="0.7"/>
+                   flame 
+                  <path d="M32 10c6 8 6 16 0 20-6-4-6-12 0-20z" fill="url(#flame)"/>
+                </svg>
+              </div>
+              <div class="flowers" id="flowers"></div>
+              <div class="smoke"></div>
+            </div>
+
+             GIF overlay layer(s) displayed after aarti 
+            <div class="gif-layer" id="gifLayer">
+               Replace gif1.gif / gif2.gif with your own assets 
+              <img id="gif1" alt="AR GIF 1" src="1.gif" onerror="this.style.display='none';" />
+              <img id="gif2" alt="AR GIF 2" src="2.gif" onerror="this.style.display='none';" />
+              <img id="gif3" alt="AR GIF 3" src="3.gif" onerror="this.style.display='none';" style="mix-blend-mode: screen; opacity: 0.9;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" aria-live="polite">
+        <button id="startBtn">Start Camera</button>
+
+        <span class="hint" id="hintText">After camera starts, align the reference image in view.</span>
+
+         Bell appears only when image is stably detected 
+        <div class="bell-wrap" id="bellWrap" title="Start AR (fix and play)">
+          <button class="icon-btn" id="bellBtn" aria-label="Start AR">
+             Bell icon (inline SVG) 
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2Zm6-6V11a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2Z"/>
             </svg>
-            Bell
           </button>
+          <span class="hint">Tap bell to start AR</span>
         </div>
+
+        <span class="status" id="playbackStatus"></span>
       </div>
 
-       AR Overlay (anchored where the image is detected)
-           Replace the 3 GIFs below with your own files under ./assets/ 
-      <div class="ar-layer" id="arLayer" aria-hidden="true">
-        <img id="gif1" class="gif" src="1.gif" alt="" />
-        <img id="gif2" class="gif" src="2.gif" alt="" />
-        <img id="gif3" class="gif" src="3.gif" alt="" />
-      </div>
+       Hidden marker source (replace marker.png with your marker).
+           If missing, a fallback synthetic marker is used automatically. 
+      <img id="marker" src="graphite-target.png" alt="Reference marker" style="display:none" />
 
-       End Screen 
-      <div class="end" id="end">
-        <div class="panel">
-          <h2>AR session ended</h2>
-          <p>Thanks for exploring GRAPHITE SKETCH.</p>
-          <button class="btn" id="restartBtn">Restart</button>
-        </div>
-      </div>
+       Audio begins exactly when aarti starts (on bell click) 
+      <audio id="bgm" preload="auto" src="song.mp3"></audio>
+    </main>
 
-       Working canvases 
-      <canvas id="work" width="320" height="240"></canvas>
-      <canvas id="tmpl" width="120" height="160"></canvas>
+    <footer>
+     @ ALL RIGHT RESERVED TO DECCAANOW CORP
+    </footer>
+  </div>
 
-       Background audio: replace with your MP3 under ./assets/music.mp3 
-      <audio id="bgm" preload="auto">
-        <source src="song.mp3" type="audio/mpeg" />
-      </audio>
-    </div>
+  <script>
+    // Core state
+    const video = document.getElementById('camera');
+    const processCanvas = document.getElementById('process');
+    const processCtx = processCanvas.getContext('2d', { willReadFrequently: true });
 
-    <script>
-      // ---- Utility: Speech greeting (optional) ----
-      function sayWelcome(){
-        try{
-          const u = new SpeechSynthesisUtterance("Welcome to Graphite Sketch");
-          u.rate = 0.95; u.pitch = 1; u.lang = "en-US";
-          speechSynthesis.cancel();
-          speechSynthesis.speak(u);
-        }catch(e){}
+    const stage = document.getElementById('stage');
+    const overlay = document.getElementById('overlay');
+    const trackedBox = document.getElementById('trackedBox');
+    const gifLayer = document.getElementById('gifLayer');
+    const aarti = document.getElementById('aarti');
+    const flowers = document.getElementById('flowers');
+
+    const startBtn = document.getElementById('startBtn');
+    const bellWrap = document.getElementById('bellWrap');
+    const bellBtn = document.getElementById('bellBtn');
+    const hintText = document.getElementById('hintText');
+    const playbackStatus = document.getElementById('playbackStatus');
+    const detStatus = document.getElementById('detStatus');
+
+    const audio = document.getElementById('bgm');
+    const markerImg = document.getElementById('marker');
+
+    // Tracker config
+    const PROC_W = 320;   // Downscaled processing width
+    const PROC_H = 240;   // Height derived after video starts (keep aspect)
+    const SCALES = [0.7, 0.85, 1.0, 1.15, 1.3]; // multi-scale template search
+    const STRIDE = 4;     // pixel step for sliding window
+    const FRAME_SKIP = 2; // compute every Nth frame for performance
+    const CONF_THRESHOLD = 0.75; // similarity threshold for "visible"
+    const STABLE_FRAMES_REQUIRED = 10; // frames before showing bell
+
+    // Smooth transform state
+    let smoothX = 0, smoothY = 0, smoothS = 1; // top-left and scale
+    const ALPHA = 0.25; // EMA factor
+
+    // Runtime flags
+    let streamActive = false;
+    let hasTemplate = false;
+    let frameCount = 0;
+    let lastVisible = false;
+    let stableFrames = 0;
+    let arEnabled = false;   // after bell click
+    let preludeRunning = false;
+    let lockedOnce = false;  // "fixed position" concept (permissioned activation)
+    let currentBox = { x: 0, y: 0, w: 100, h: 100, scale: 1 };
+
+    // Template data
+    let tplGray = null;
+    let tplW = 0, tplH = 0;
+
+    // Utility: generate a fallback synthetic marker if marker.png missing
+    function generateFallbackMarker(size = 96) {
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,size,size);
+      // Border
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(4,4,size-8,size-8);
+      // Circle
+      ctx.fillStyle = '#111827';
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size*0.22, 0, Math.PI*2);
+      ctx.fill();
+      return c;
+    }
+
+    markerImg.onerror = () => {
+      markerImg.dataset.fallback = '1';
+    };
+
+    // Convert Image/Canvas to grayscale float array [0..255]
+    function toGrayscale(imgCanvasOrImg) {
+      let w, h, off, ictx;
+      if (imgCanvasOrImg instanceof HTMLCanvasElement) {
+        w = imgCanvasOrImg.width; h = imgCanvasOrImg.height;
+        off = imgCanvasOrImg;
+        ictx = off.getContext('2d');
+      } else {
+        w = imgCanvasOrImg.naturalWidth || imgCanvasOrImg.width;
+        h = imgCanvasOrImg.naturalHeight || imgCanvasOrImg.height;
+        off = document.createElement('canvas');
+        off.width = w; off.height = h;
+        ictx = off.getContext('2d');
+        ictx.drawImage(imgCanvasOrImg, 0, 0, w, h);
       }
+      const { data } = ictx.getImageData(0,0,w,h);
+      const g = new Float32Array(w*h);
+      for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+        // luminosity
+        g[j] = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+      }
+      return { g, w, h };
+    }
 
-      // ---- Elements ----
-      const video = document.getElementById('camera');
-      const startBtn = document.getElementById('startBtn');
-      const stopBtn = document.getElementById('stopBtn');
-      const statusEl = document.getElementById('status');
-      const endScreen = document.getElementById('end');
-      const restartBtn = document.getElementById('restartBtn');
-      const arLayer = document.getElementById('arLayer');
-      const guide = document.getElementById('guide');
-      const bgm = document.getElementById('bgm');
-      const bellBtn = document.getElementById('bellBtn');
-      const gif1 = document.getElementById('gif1');
-      const gif2 = document.getElementById('gif2');
-      const gif3 = document.getElementById('gif3');
-      const refImg = document.getElementById('refImg');
-
-      // ---- State ----
-      let stream = null;
-      let rafId = null;
-      let scanning = false;
-      let locked = false;
-      let consecutiveHits = 0;
-      let playing = false;
-      let paused = false;
-      let missFrames = 0;
-      let seqStartTs = 0;
-      let elapsedMs = 0;
-      let currentSeg = 0; // 0,1,2 for 3 GIFs
-      const segDur = [5000, 5000, 5000]; // total 15000
-      let tSeg1 = null, tSeg2 = null, tEnd = null;
-
-      let geoWatchId = null;
-      let currentLat = null, currentLng = null;
-      let homeLat = null, homeLng = null; // saved on bell click
-      const RADIUS_METERS = 30;
-
-      // ---- Camera ----
-      async function startCamera(){
-        try{
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" }, width:{ideal:1280}, height:{ideal:720} },
-            audio: false
-          });
-          video.srcObject = stream;
-          await video.play();
-        }catch(err){
-          console.error(err);
-          statusEl.textContent = "Camera permission denied or unavailable.";
+    // Resize grayscale buffer to new size (nearest-neighbor for speed)
+    function resizeGray(src, sw, sh, dw, dh) {
+      const out = new Float32Array(dw*dh);
+      for (let y=0; y<dh; y++) {
+        const sy = Math.floor(y * sh / dh);
+        for (let x=0; x<dw; x++) {
+          const sx = Math.floor(x * sw / dw);
+          out[y*dw + x] = src[sy*sw + sx];
         }
       }
-      function stopCamera(){
-        if(stream){
-          stream.getTracks().forEach(t => t.stop());
-          stream = null;
+      return out;
+    }
+
+    // Compute SAD similarity (lower SAD => better). We return normalized similarity [0..1] = 1 - SAD/(n*255).
+    function windowSAD(frame, fw, fh, tpl, tw, th, ox, oy) {
+      let sad = 0;
+      let n = 0;
+      for (let ty=0; ty<th; ty++) {
+        const fy = oy + ty;
+        const foff = fy * fw + ox;
+        const toff = ty * tw;
+        for (let tx=0; tx<tw; tx++) {
+          const diff = frame[foff + tx] - tpl[toff + tx];
+          sad += (diff < 0 ? -diff : diff);
+        }
+        n += tw;
+      }
+      return 1 - (sad / (n * 255));
+    }
+
+    // Find best match across scales; returns {ok, score, x, y, scale, tw, th}
+    function findBestMatch(frame, fw, fh) {
+      if (!tplGray) return { ok: false };
+      let best = { ok: false, score: -Infinity, x: 0, y: 0, scale: 1, tw: tplW, th: tplH };
+      for (const s of SCALES) {
+        const tw = Math.max(24, Math.floor(tplW*s));
+        const th = Math.max(24, Math.floor(tplH*s));
+        if (tw >= fw || th >= fh) continue;
+        const scaled = resizeGray(tplGray, tplW, tplH, tw, th);
+        // sliding window
+        for (let y=0; y<=fh-th; y+=STRIDE) {
+          for (let x=0; x<=fw-tw; x+=STRIDE) {
+            const sim = windowSAD(frame, fw, fh, scaled, tw, th, x, y);
+            if (sim > best.score) {
+              best = { ok: true, score: sim, x, y, scale: s, tw, th };
+            }
+          }
         }
       }
+      return best;
+    }
 
-      // ---- Detection core: template preparation + NCC scanning ----
-      const work = document.getElementById('work');
-      const wctx = work.getContext('2d',{willReadFrequently:true});
-      const tmpl = document.getElementById('tmpl');
-      const tctx = tmpl.getContext('2d',{willReadFrequently:true});
+    function ema(prev, next, alpha) {
+      return prev + alpha * (next - prev);
+    }
 
-      let tW = 120, tH = 160;  // template size (downscaled)
-      let tVec = null, tMean = 0, tNorm = 1;
+    function mapToStageCoords(px, py, fromW, fromH, stageRect) {
+      // frame is drawn into processCanvas of size procW x procH (fit same aspect as video)
+      const sx = px * (stageRect.width / fromW);
+      const sy = py * (stageRect.height / fromH);
+      return { x: sx, y: sy };
+    }
 
-      function toGray(data){
-        const out = new Float32Array((data.length/4)|0);
-        for(let i=0,j=0;i<data.length;i+=4,j++){
-          out[j] = (0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2])/255;
-        }
-        return out;
-      }
-      function meanAndNorm(vec){
-        let sum=0; for(let i=0;i<vec.length;i++) sum+=vec[i];
-        const mean = sum/vec.length;
-        let sq=0; for(let i=0;i<vec.length;i++){ const d=vec[i]-mean; sq+=d*d; }
-        const norm = Math.sqrt(sq);
-        return [mean, norm || 1];
-      }
-      function dotNCC(a, aMean, aNorm, b, bMean, bNorm){
-        let s=0;
-        for(let i=0;i<a.length;i++){
-          s += (a[i]-aMean)*(b[i]-bMean);
-        }
-        return s/(aNorm*bNorm);
-      }
+    function setTrackedTransform(x, y, w, h) {
+      trackedBox.style.transform = `translate(${x}px, ${y}px)`;
+      trackedBox.style.width = `${w}px`;
+      trackedBox.style.height = `${h}px`;
+    }
 
-      async function prepareTemplate(){
-        await new Promise(res=>{
-          if(refImg.complete) res(); else refImg.onload = res;
+    function showBell(show) {
+      bellWrap.classList.toggle('show', !!show);
+    }
+
+    function setStatus(text) {
+      detStatus.textContent = text;
+    }
+
+    function setPlaybackStatus(text) {
+      playbackStatus.textContent = text || '';
+    }
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
         });
-        const r = refImg.naturalHeight/refImg.naturalWidth;
-        tH = Math.round(tW*r);
-        tmpl.width = tW; tmpl.height = tH;
-        tctx.drawImage(refImg, 0, 0, tW, tH);
-        const tData = tctx.getImageData(0,0,tW,tH).data;
-        tVec = toGray(tData);
-        [tMean, tNorm] = meanAndNorm(tVec);
+        video.srcObject = stream;
+        streamActive = true;
+        setStatus('Camera started. Align the image.');
+      } catch (err) {
+        setStatus('Failed to access camera');
+        console.error(err);
       }
+    }
 
-      function findTarget(){
-        const vw = video.videoWidth || 1280;
-        const vh = video.videoHeight || 720;
-        const scale = 360 / Math.min(vw, vh);
-        const fw = Math.round(vw*scale);
-        const fh = Math.round(vh*scale);
-
-        work.width = fw; work.height = fh;
-        wctx.drawImage(video, 0, 0, fw, fh);
-
-        const frame = wctx.getImageData(0,0,fw,fh);
-        const fGray = toGray(frame.data);
-        const winW = tW, winH = tH;
-
-        let best = {score:-1, x:0, y:0, w:winW, h:winH};
-        const step = 8;
-        for(let y=0;y<=fh-winH; y+=step){
-          for(let x=0;x<=fw-winW; x+=step){
-            const wVec = new Float32Array(winW*winH);
-            let k=0;
-            for(let yy=0;yy<winH;yy++){
-              const rowStart = (y+yy)*fw + x;
-              for(let xx=0;xx<winW;xx++){
-                wVec[k++] = fGray[rowStart+xx];
-              }
-            }
-            const [wMean, wNorm] = meanAndNorm(wVec);
-            const s = dotNCC(wVec, wMean, wNorm, tVec, tMean, tNorm);
-            if(s>best.score){ best={score:s, x, y, w:winW, h:winH}; }
+    // Prepare the marker template (from marker.png or synthetic fallback)
+    function prepareTemplate() {
+      return new Promise(resolve => {
+        const ready = () => {
+          let sourceCanvas = null;
+          if (markerImg.dataset.fallback === '1' || !markerImg.complete || markerImg.naturalWidth === 0) {
+            sourceCanvas = generateFallbackMarker(96);
           }
-        }
-
-        const screenW = video.clientWidth;
-        const screenH = video.clientHeight;
-        const rx = screenW/fw;
-        const ry = screenH/fh;
-
-        return {
-          score: best.score,
-          left: best.x*rx,
-          top: best.y*ry,
-          width: best.w*rx,
-          height: best.h*ry
+          const { g, w, h } = toGrayscale(sourceCanvas || markerImg);
+          tplGray = g; tplW = w; tplH = h;
+          hasTemplate = true;
+          resolve();
         };
-      }
 
-      function showSpark(x,y){
-        const s=document.createElement('div');
-        s.className='spark';
-        s.style.left=(x-4)+'px';
-        s.style.top=(y-4)+'px';
-        s.style.position='absolute';
-        document.body.appendChild(s);
-        setTimeout(()=>s.remove(),800);
-      }
-
-      function primeAudio() {
-        return bgm.play().then(() => {
-          bgm.pause();
-          bgm.currentTime = 0;
-        }).catch(()=>{ /* ignore */ });
-      }
-
-      function showOnly(el){
-        [gif1, gif2, gif3].forEach(g=>{ g.style.display='none'; });
-        if(el) el.style.display='block';
-      }
-
-      function scheduleTimers(startOffsetMs){
-        let acc = 0;
-        currentSeg = 0;
-        for (let i=0;i<segDur.length;i++){
-          if(startOffsetMs < acc + segDur[i]) { currentSeg = i; break; }
-          acc += segDur[i];
-        }
-        showOnly([gif1, gif2, gif3][currentSeg]);
-
-        const remainingInSeg = acc + segDur[currentSeg] - startOffsetMs;
-        [tSeg1, tSeg2, tEnd].forEach(id => { if(id) clearTimeout(id); });
-        tSeg1 = tSeg2 = tEnd = null;
-
-        if(currentSeg === 0){
-          tSeg1 = setTimeout(()=>{ showOnly(gif2); currentSeg = 1; }, remainingInSeg);
-          tSeg2 = setTimeout(()=>{ showOnly(gif3); currentSeg = 2; }, remainingInSeg + segDur[1]);
-          tEnd  = setTimeout(()=>{ try{ bgm.pause(); }catch(e){} finishOverlay(); }, remainingInSeg + segDur[1] + segDur[2]);
-        } else if(currentSeg === 1){
-          tSeg2 = setTimeout(()=>{ showOnly(gif3); currentSeg = 2; }, remainingInSeg);
-          tEnd  = setTimeout(()=>{ try{ bgm.pause(); }catch(e){} finishOverlay(); }, remainingInSeg + segDur[2]);
+        if (markerImg.complete) {
+          ready();
         } else {
-          tEnd  = setTimeout(()=>{ try{ bgm.pause(); }catch(e){} finishOverlay(); }, remainingInSeg);
+          markerImg.onload = ready;
+          markerImg.onerror = ready; // fallback
         }
-      }
+      });
+    }
 
-      async function startSequence(){
-        if(playing) return;
-        playing = true;
-        paused = false;
-        missFrames = 0;
-        seqStartTs = performance.now();
-        elapsedMs = 0;
-        currentSeg = 0;
+    function startProcessingLoop() {
+      const loop = () => {
+        if (!streamActive) return;
 
-        const totalMs = Number.isFinite(bgm.duration) && bgm.duration>0 ? Math.round(bgm.duration*1000) : 15000;
-        segDur[0] = Math.floor(totalMs/3);
-        segDur[1] = Math.floor(totalMs/3);
-        segDur[2] = totalMs - segDur[0] - segDur[1];
-
-        showOnly(gif1);
-        arLayer.classList.add('active');
-        statusEl.textContent = "Playing 3-part sequence…";
-
-        (async ()=>{
-          try{
-            bgm.currentTime = 0;
-            await bgm.play();
-          }catch(e){}
-        })();
-        bgm.onended = () => { finishOverlay(); };
-
-        scheduleTimers(0);
-      }
-
-      function pauseSequence(){
-        if(!playing || paused) return;
-        paused = true;
-        elapsedMs += performance.now() - seqStartTs;
-        try { bgm.pause(); } catch(e){}
-        [tSeg1, tSeg2, tEnd].forEach(id => { if(id) clearTimeout(id); });
-        tSeg1 = tSeg2 = tEnd = null;
-        arLayer.classList.remove('active');
-        statusEl.textContent = "Target lost or out of location. Hold the image in frame to resume.";
-      }
-
-      async function resumeSequence(){
-        if(!playing || !paused) return;
-        paused = false;
-        seqStartTs = performance.now();
-        try { await bgm.play(); } catch(e){}
-        scheduleTimers(elapsedMs);
-        arLayer.classList.add('active');
-        statusEl.textContent = "Resumed.";
-      }
-
-      function finishOverlay(){
-        showOnly(null);
-        arLayer.classList.remove('active');
-        playing = false;
-        paused = false;
-        [tSeg1, tSeg2, tEnd].forEach(id => { if(id) clearTimeout(id); });
-        tSeg1 = tSeg2 = tEnd = null;
-        statusEl.textContent = "Sequence finished. Point at the image to play again.";
-      }
-
-      // ---- AR Flow ----
-      async function startAR(){
-        sayWelcome();
-        startBtn.style.display='none';
-        stopBtn.style.display='inline-block';
-        statusEl.textContent = "Initializing back camera…";
-        await Promise.all([startCamera(), prepareTemplate()]);
-        await primeAudio();
-        startGeoWatch();
-        statusEl.textContent = "Keep the image fully inside the frame. When locked, tap the bell to save your location and start.";
-        guide.style.borderColor = 'rgba(14,165,233,.45)';
-
-        scanning = true;
-        locked = false;
-        consecutiveHits = 0;
-        playing = false;
-        paused = false;
-        missFrames = 0;
-        arLayer.classList.remove('active');
-        bellBtn.style.display='none';
-        scanLoop();
-      }
-
-      function stopAR(){
-        scanning = false;
-        cancelAnimationFrame(rafId);
-        try{ bgm.pause(); }catch(e){}
-        arLayer.classList.remove('active');
-        stopBtn.style.display='none';
-        endScreen.classList.add('show');
-        statusEl.textContent = "Session ended.";
-        bellBtn.style.display='none';
-        stopGeoWatch();
-        stopCamera();
-      }
-
-      function restart(){
-        endScreen.classList.remove('show');
-        startBtn.style.display='inline-block';
-        statusEl.textContent = "Tap Start to allow back camera. Keep the target in the frame.";
-      }
-
-      function scanLoop(){
-        if(!scanning) return;
-        const match = findTarget();
-
-        function insideGuide(rect){
-          const g = guide.getBoundingClientRect();
-          const leftOk = rect.left >= g.left + 4;
-          const topOk = rect.top >= g.top + 4;
-          const rightOk = (rect.left + rect.width) <= (g.right - 4);
-          const bottomOk = (rect.top + rect.height) <= (g.bottom - 4);
-          return leftOk && topOk && rightOk && bottomOk;
-        }
-
-        if(match.score > 0.86){
-          consecutiveHits++;
-          arLayer.style.transform = `translate(${match.left}px, ${match.top}px)`;
-          arLayer.style.width = `${match.width}px`;
-          arLayer.style.height = `${match.height}px`;
-
-          const inFrame = insideGuide(match);
-
-          if(!locked && consecutiveHits>=3 && inFrame){
-            locked = true;
-            showSpark(match.left+match.width/2, match.top+match.height/2);
-            statusEl.textContent = "Target locked in frame. Tap the bell to save location and start.";
-          }
-
-          if(locked && inFrame && !playing && !paused){
-            bellBtn.style.display='inline-flex';
-          }else{
-            bellBtn.style.display='none';
-          }
-
-          if(playing){
-            missFrames = 0;
-            const canPlayHere = (homeLat==null || withinRadius());
-            if(!inFrame || !canPlayHere){
-              if(!paused) pauseSequence();
-            }else{
-              if(paused) resumeSequence();
-              arLayer.classList.add('active');
-            }
-          }
-        } else {
-          consecutiveHits = 0;
-          bellBtn.style.display='none';
-          if(playing && !paused){
-            missFrames++;
-            if(missFrames > 8){
-              pauseSequence();
-            }
-          }else{
-            arLayer.classList.remove('active');
-          }
-        }
-
-        rafId = requestAnimationFrame(scanLoop);
-      }
-
-      startBtn.addEventListener('click', startAR);
-      stopBtn.addEventListener('click', stopAR);
-      restartBtn.addEventListener('click', restart);
-
-      bellBtn.addEventListener('click', ()=>{
-        if(!locked || playing) return;
-        if(!navigator.geolocation){
-          statusEl.textContent = "Geolocation not available; cannot save location.";
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (vw < 2 || vh < 2) {
+          requestAnimationFrame(loop);
           return;
         }
-        navigator.geolocation.getCurrentPosition(async (pos)=>{
-          homeLat = pos.coords.latitude;
-          homeLng = pos.coords.longitude;
-          statusEl.textContent = "Location saved. Starting…";
-          bellBtn.style.display='none';
-          startSequence();
-        }, ()=>{
-          statusEl.textContent = "Location permission denied. Cannot start.";
-        }, { enableHighAccuracy:true, timeout:5000 });
-      });
 
-      function haversineMeters(lat1, lon1, lat2, lon2){
-        if([lat1,lon1,lat2,lon2].some(v=>v==null)) return Infinity;
-        const toRad = d=>d*Math.PI/180;
-        const R=6371000;
-        const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
-        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-        return 2*R*Math.asin(Math.sqrt(a));
-      }
-      function withinRadius(){
-        if(homeLat==null || homeLng==null || currentLat==null || currentLng==null) return false;
-        return haversineMeters(currentLat,currentLng,homeLat,homeLng) <= RADIUS_METERS;
-      }
-      function startGeoWatch(){
-        if(!navigator.geolocation) return;
-        geoWatchId = navigator.geolocation.watchPosition(
-          (pos)=>{
-            currentLat = pos.coords.latitude;
-            currentLng = pos.coords.longitude;
-          },
-          ()=>{ /* ignore errors */ },
-          { enableHighAccuracy:true, maximumAge:2000, timeout:5000 }
-        );
-      }
-      function stopGeoWatch(){
-        if(geoWatchId!=null && navigator.geolocation){
-          navigator.geolocation.clearWatch(geoWatchId);
-          geoWatchId = null;
+        // Set processing canvas to desired size with correct aspect
+        let procW = PROC_W;
+        let procH = Math.floor(PROC_W * (vh / vw));
+        processCanvas.width = procW;
+        processCanvas.height = procH;
+
+        // Draw current frame
+        processCtx.drawImage(video, 0, 0, procW, procH);
+        const frameData = processCtx.getImageData(0, 0, procW, procH).data;
+
+        // Convert to grayscale
+        const gray = new Float32Array(procW*procH);
+        for (let i=0, j=0; i<frameData.length; i+=4, j++) {
+          gray[j] = 0.299*frameData[i] + 0.587*frameData[i+1] + 0.114*frameData[i+2];
         }
+
+        let visible = false;
+        let best = null;
+
+        if (hasTemplate && (frameCount % FRAME_SKIP === 0)) {
+          best = findBestMatch(gray, procW, procH);
+          if (best.ok && best.score >= CONF_THRESHOLD) {
+            visible = true;
+            const stageRect = stage.getBoundingClientRect();
+            const mapped = mapToStageCoords(best.x, best.y, procW, procH, stageRect);
+            const mappedBR = mapToStageCoords(best.x + best.tw, best.y + best.th, procW, procH, stageRect);
+            const targetW = Math.max(8, mappedBR.x - mapped.x);
+            const targetH = Math.max(8, mappedBR.y - mapped.y);
+
+            // Smooth top-left & scale using EMA
+            const scaleGuess = targetW / tplW;
+            smoothX = ema(smoothX, mapped.x, ALPHA);
+            smoothY = ema(smoothY, mapped.y, ALPHA);
+            smoothS = ema(smoothS, scaleGuess, ALPHA);
+
+            currentBox = {
+              x: smoothX,
+              y: smoothY,
+              w: tplW * smoothS,
+              h: tplH * smoothS,
+              scale: smoothS
+            };
+
+            setTrackedTransform(currentBox.x, currentBox.y, currentBox.w, currentBox.h);
+          }
+        }
+
+        // Stability tracking and UI logic
+        if (visible) {
+          if (!lastVisible) {
+            // just became visible
+            setStatus('Image detected');
+          }
+          stableFrames = Math.min(STABLE_FRAMES_REQUIRED, stableFrames + 1);
+        } else {
+          stableFrames = 0;
+          if (lastVisible) {
+            setStatus('Image lost');
+          }
+        }
+
+        // Show bell when stable for N frames and AR not yet enabled
+        if (!arEnabled && stableFrames >= STABLE_FRAMES_REQUIRED) {
+          showBell(true);
+          hintText.textContent = 'Image locked. Tap the bell to start AR.';
+        } else if (!arEnabled) {
+          showBell(false);
+          hintText.textContent = 'Align the reference image fully in the frame.';
+        }
+
+        // When AR is enabled, show/hide content based on visibility
+        if (arEnabled && !preludeRunning) {
+          if (visible) {
+            // ensure overlay visible and audio playing
+            trackedBox.style.display = 'block';
+            if (!audio.paused) {
+              // ok
+            } else {
+              // resume if previously paused by loss
+              audio.play().catch(()=>{});
+              setPlaybackStatus('Resumed over image');
+            }
+            gifLayer.style.display = 'block';
+          } else {
+            // pause audio & hide overlays if target lost
+            gifLayer.style.display = 'none';
+            trackedBox.style.display = 'none';
+            if (!audio.paused) {
+              audio.pause();
+              setPlaybackStatus('Paused (image not visible)');
+            }
+          }
+        }
+
+        lastVisible = visible;
+        frameCount++;
+        requestAnimationFrame(loop);
+      };
+
+      requestAnimationFrame(loop);
+    }
+
+    function spawnFlowers(container, w, count = 20) {
+      // Create petals falling across the tracked width
+      const width = Math.max(40, Math.floor(w));
+      for (let i = 0; i < count; i++) {
+        const d = document.createElement('div');
+        d.className = 'petal';
+        d.style.left = Math.floor(Math.random()*100) + '%';
+        d.style.animationDelay = (Math.random()*0.6).toFixed(2) + 's';
+        d.style.opacity = (0.7 + Math.random()*0.3).toFixed(2);
+        d.style.transform = `translateY(0) rotate(${Math.floor(Math.random()*180)}deg)`;
+        container.appendChild(d);
+        // remove after animation
+        setTimeout(() => d.remove(), 2400);
       }
+    }
 
-      document.addEventListener('DOMContentLoaded', () => {
-        startBtn.style.display='inline-block';
-        statusEl.textContent = "Tap Start to allow back camera. Keep the target fully inside the frame, then tap the bell.";
-      }, { once: true });
+    async function startAartiPreludeThenGIFs() {
+      if (preludeRunning) return;
+      preludeRunning = true;
+      setPlaybackStatus('Starting Aarti...');
 
-      // Hide GIFs if missing files to avoid errors
-      [gif1, gif2, gif3].forEach(img=>{
-        img.addEventListener('error', ()=>{ img.style.display='none'; }, {passive:true});
-      })
-    </script>
-  </body>
+      // 1) Show tracked box and Aarti prelude
+      trackedBox.style.display = 'block';
+      aarti.style.display = 'block';
+      gifLayer.style.display = 'none';
+
+      // 2) Start audio immediately (on bell user gesture)
+      try { await audio.play(); } catch (e) {}
+
+      // 3) Spawn flowers for 2s
+      flowers.innerHTML = '';
+      spawnFlowers(flowers, currentBox.w, 28);
+
+      // 4) Show smoke (CSS animation handles it)
+      // (Already present as .smoke inside aarti)
+
+      // 5) After ~2s, end aarti and show GIF layer
+      setTimeout(() => {
+        aarti.style.display = 'none';
+        gifLayer.style.display = 'block';
+        setPlaybackStatus('Playing over image');
+        preludeRunning = false;
+      }, 2000);
+    }
+
+    // Event wiring
+    startBtn.addEventListener('click', async () => {
+      await startCamera();
+
+      // wait for video to be ready
+      video.onloadedmetadata = async () => {
+        // Prepare template
+        await prepareTemplate();
+        setStatus('Camera active. Find the image.');
+        startProcessingLoop();
+        hintText.textContent = 'Align the reference image fully in the frame.';
+      };
+    });
+
+    bellBtn.addEventListener('click', async () => {
+      if (stableFrames < STABLE_FRAMES_REQUIRED) return; // extra guard
+      // "Fix position latitude and longitude": interpret as permission to activate AR
+      lockedOnce = true;
+      arEnabled = true;
+      showBell(false);
+      hintText.textContent = 'AR started. Keep the image in view.';
+      setStatus('AR active');
+
+      // Start Aarti prelude then show GIFs
+      await startAartiPreludeThenGIFs();
+    });
+
+    // Handle audio end or errors gracefully
+    audio.addEventListener('ended', () => {
+      setPlaybackStatus('Audio ended');
+    });
+    audio.addEventListener('error', () => {
+      setPlaybackStatus('Audio error (check song.mp3)');
+    });
+
+    // Accessibility: if user minimizes or page hides, pause audio
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && !audio.paused) {
+        audio.pause();
+        setPlaybackStatus('Paused (tab hidden)');
+      }
+    });
+
+    // Init UI text
+    setStatus('Camera idle');
+    setPlaybackStatus('');
+  </script>
+</body>
 </html>
