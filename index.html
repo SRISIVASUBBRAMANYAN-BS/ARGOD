@@ -112,14 +112,14 @@
        UI HUD 
       <div class="hud">
         <header>
-          <div class="title">Welcome to Deccaanow corp</div>
+          <div class="title">Welcome to GRAPHITE SKETCH</div>
           <div class="status" id="status">Tap Start to allow back camera. Then point at the image.</div>
         </header>
         <div class="guide" id="guide"></div>
         <div class="controls">
-          <button class="btn" id="startBtn">Start AR</button>
+          <button class="btn" id="startBtn" style="display:inline-block;">Start AR</button>
           <button class="btn" id="stopBtn" style="display:none;">Stop</button>
-          <button class="btn bell" id="bellBtn" aria-label="Ring bell to start">
+          <button class="btn bell" id="bellBtn" aria-label="Ring bell to start" style="display:none;">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 2a1 1 0 0 1 1 1v.28a7 7 0 0 1 5 6.72v3.3l1.38 2.77A1 1 0 0 1 18.5 18h-13a1 1 0 0 1-.88-1.43L6 13.3V10a7 7 0 0 1 5-6.72V3a1 1 0 0 1 1-1Zm0 20a3 3 0 0 1-3-3h6a3 3 0 0 1-3 3Z"/>
             </svg>
@@ -186,7 +186,13 @@
       let locked = false;
       let consecutiveHits = 0;
       let playing = false;
+      let paused = false;
       let missFrames = 0;
+      let seqStartTs = 0;
+      let elapsedMs = 0;
+      let currentSeg = 0; // 0,1,2 for 3 GIFs
+      const segDur = [5000, 5000, 5000]; // total 15000
+      let tSeg1 = null, tSeg2 = null, tEnd = null;
 
       async function startCamera(){
         try{
@@ -320,71 +326,12 @@
         setTimeout(()=>s.remove(),800);
       }
 
-      // ---- AR Flow ----
-      async function startAR(){
-        sayWelcome();
-        startBtn.style.display='none';
-        stopBtn.style.display='inline-block';
-        statusEl.textContent = "Initializing camera...";
-        await Promise.all([startCamera(), prepareTemplate()]);
-        statusEl.textContent = "Point your camera at the reference image.";
-        guide.style.borderColor = 'rgba(14,165,233,.45)';
-
-        bgm.onended = null;
-
-        scanning = true;
-        locked = false;
-        bellBtn.style.display = 'none';
-        playing = false;
-        missFrames = 0;
-        arLayer.classList.remove('active');
-        scanLoop();
-      }
-
-      function scanLoop(){
-        if(!scanning) return;
-        const match = findTarget();
-
-        if(match.score > 0.86){
-          consecutiveHits++;
-          arLayer.style.transform = `translate(${match.left}px, ${match.top}px)`;
-          arLayer.style.width = `${match.width}px`;
-          arLayer.style.height = `${match.height}px`;
-
-          if(!locked && consecutiveHits>=3){
-            locked = true;
-            bellBtn.style.display = 'inline-flex';
-            bellBtn.disabled = false;
-            statusEl.textContent = "Target found. Tap the bell to start GIFs and music.";
-          }
-          if(playing){
-            arLayer.classList.add('active');
-            missFrames = 0;
-          }
-        } else {
-          consecutiveHits = 0;
-          if(!locked){
-            arLayer.classList.remove('active');
-            bellBtn.style.display = 'none';
-          }
-          if(playing){
-            missFrames++;
-            if(missFrames > 8){
-              arLayer.classList.remove('active');
-              statusEl.textContent = "Target lost. Keep the image in view to see the overlay.";
-            }
-          }
-        }
-
-        rafId = requestAnimationFrame(scanLoop);
-      }
-
-      function finishOverlay(){
-        showOnly(null);
-        arLayer.classList.remove('active');
-        playing = false;
-        bellBtn.disabled = false;
-        statusEl.textContent = "Sequence finished. Align again to play once more.";
+      function primeAudio() {
+        // attempt to satisfy autoplay policies using the Start button gesture
+        return bgm.play().then(() => {
+          bgm.pause();
+          bgm.currentTime = 0;
+        }).catch(()=>{ /* ignore */ });
       }
 
       function showOnly(el){
@@ -392,38 +339,112 @@
         if(el) el.style.display='block';
       }
 
-      // Hide GIF if missing file to avoid errors
-      [gif1, gif2, gif3].forEach(img=>{
-        img.addEventListener('error', ()=>{ img.style.display='none'; }, {passive:true});
-      })
+      function scheduleTimers(startOffsetMs){
+        // startOffsetMs: elapsed in current sequence
+        // figure current segment based on elapsed
+        let acc = 0;
+        currentSeg = 0;
+        for (let i=0;i<segDur.length;i++){
+          if(startOffsetMs < acc + segDur[i]) { currentSeg = i; break; }
+          acc += segDur[i];
+        }
+        // show correct GIF now
+        showOnly([gif1, gif2, gif3][currentSeg]);
 
-      bellBtn.addEventListener('click', async ()=>{
-        if(!locked || playing) return;
+        const remainingInSeg = acc + segDur[currentSeg] - startOffsetMs;
+        // clear previous timers if any
+        [tSeg1, tSeg2, tEnd].forEach(id => { if(id) clearTimeout(id); });
+        tSeg1 = tSeg2 = tEnd = null;
+
+        // chain remaining segments to finish at 15s total
+        if(currentSeg === 0){
+          tSeg1 = setTimeout(()=>{ showOnly(gif2); currentSeg = 1; }, remainingInSeg);
+          tSeg2 = setTimeout(()=>{ showOnly(gif3); currentSeg = 2; }, remainingInSeg + segDur[1]);
+          tEnd  = setTimeout(()=>{ try{ bgm.pause(); }catch(e){} finishOverlay(); }, remainingInSeg + segDur[1] + segDur[2]);
+        } else if(currentSeg === 1){
+          tSeg2 = setTimeout(()=>{ showOnly(gif3); currentSeg = 2; }, remainingInSeg);
+          tEnd  = setTimeout(()=>{ try{ bgm.pause(); }catch(e){} finishOverlay(); }, remainingInSeg + segDur[2]);
+        } else {
+          tEnd  = setTimeout(()=>{ try{ bgm.pause(); }catch(e){} finishOverlay(); }, remainingInSeg);
+        }
+      }
+
+      async function startSequence(){
+        if(playing) return;
+        playing = true;
+        paused = false;
+        missFrames = 0;
+        seqStartTs = performance.now();
+        elapsedMs = 0;
+        currentSeg = 0;
+        showOnly(gif1);
+        arLayer.classList.add('active');
+        statusEl.textContent = "Playing 3-part sequence…";
+
         try{
-          bellBtn.disabled = true;
-          // Start background music
           bgm.currentTime = 0;
           await bgm.play();
-
-          // Start 3 GIFs sequentially (5s each = 15s total)
-          playing = true;
-          missFrames = 0;
-          statusEl.textContent = "Playing 3-part sequence…";
-          showOnly(gif1);
-          arLayer.classList.add('active');
-
-          setTimeout(()=> showOnly(gif2), 5000);
-          setTimeout(()=> showOnly(gif3), 10000);
-          setTimeout(()=> {
-            try{ bgm.pause(); }catch(e){}
-            finishOverlay();
-          }, 15000);
-
         }catch(e){
-          bellBtn.disabled = false;
-          statusEl.textContent = "Unable to start media. Ensure sound is on and try again.";
+          // try to recover later when focus changes
         }
-      });
+        bgm.onended = () => { finishOverlay(); };
+
+        scheduleTimers(0);
+      }
+
+      function pauseSequence(){
+        if(!playing || paused) return;
+        paused = true;
+        elapsedMs += performance.now() - seqStartTs;
+        try { bgm.pause(); } catch(e){}
+        // clear timers but keep playing=true so we know to resume
+        [tSeg1, tSeg2, tEnd].forEach(id => { if(id) clearTimeout(id); });
+        tSeg1 = tSeg2 = tEnd = null;
+        arLayer.classList.remove('active');
+        statusEl.textContent = "Target lost. Hold the image in view to resume.";
+      }
+
+      async function resumeSequence(){
+        if(!playing || !paused) return;
+        paused = false;
+        seqStartTs = performance.now(); // mark resume time
+        // resume audio safely
+        try { await bgm.play(); } catch(e){}
+        scheduleTimers(elapsedMs);
+        arLayer.classList.add('active');
+        statusEl.textContent = "Resumed.";
+      }
+
+      function finishOverlay(){
+        showOnly(null);
+        arLayer.classList.remove('active');
+        playing = false;
+        paused = false;
+        [tSeg1, tSeg2, tEnd].forEach(id => { if(id) clearTimeout(id); });
+        tSeg1 = tSeg2 = tEnd = null;
+        statusEl.textContent = "Sequence finished. Point at the image to play again.";
+      }
+
+      // ---- AR Flow ----
+      async function startAR(){
+        sayWelcome();
+        startBtn.style.display='none';
+        stopBtn.style.display='inline-block';
+        statusEl.textContent = "Initializing back camera…";
+        await Promise.all([startCamera(), prepareTemplate()]);
+        await primeAudio();
+        statusEl.textContent = "Point your camera at the reference image.";
+        guide.style.borderColor = 'rgba(14,165,233,.45)';
+
+        scanning = true;
+        locked = false;
+        consecutiveHits = 0;
+        playing = false;
+        paused = false;
+        missFrames = 0;
+        arLayer.classList.remove('active');
+        scanLoop();
+      }
 
       function stopAR(){
         scanning = false;
@@ -442,9 +463,60 @@
         statusEl.textContent = "Tap Start to allow back camera. Then point at the image.";
       }
 
-      document.addEventListener('visibilitychange', ()=>{
-        if(document.visibilityState==='visible' && stream && video.paused){ video.play(); }
-      }, {passive:true});
+      function scanLoop(){
+        if(!scanning) return;
+        const match = findTarget();
+
+        if(match.score > 0.86){
+          consecutiveHits++;
+          arLayer.style.transform = `translate(${match.left}px, ${match.top}px)`;
+          arLayer.style.width = `${match.width}px`;
+          arLayer.style.height = `${match.height}px`;
+
+          if(!locked && consecutiveHits>=3){
+            locked = true;
+            statusEl.textContent = "Target found.";
+          }
+          if(locked){
+            if(!playing && !paused){
+              startSequence(); // auto start once target is stably detected
+            } else if(playing && paused){
+              resumeSequence(); // resume if we had paused due to target lost
+            } else if(playing){
+              arLayer.classList.add('active');
+            }
+            missFrames = 0;
+          }
+        } else {
+          consecutiveHits = 0;
+          if(!locked){
+            arLayer.classList.remove('active');
+          }
+          if(playing && !paused){
+            missFrames++;
+            if(missFrames > 8){
+              pauseSequence(); // pause overlay and music when target is lost
+            }
+          }
+        }
+
+        rafId = requestAnimationFrame(scanLoop);
+      }
+
+      startBtn.addEventListener('click', startAR);
+      stopBtn.addEventListener('click', stopAR);
+      restartBtn.addEventListener('click', restart);
+
+      document.addEventListener('DOMContentLoaded', () => {
+        // show Start button at load
+        startBtn.style.display='inline-block';
+        statusEl.textContent = "Tap Start to allow back camera. Then point at the image.";
+      }, { once: true });
+
+      // Hide GIF if missing file to avoid errors
+      [gif1, gif2, gif3].forEach(img=>{
+        img.addEventListener('error', ()=>{ img.style.display='none'; }, {passive:true});
+      })
     </script>
   </body>
 </html>
