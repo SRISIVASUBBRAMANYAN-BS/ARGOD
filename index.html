@@ -16,8 +16,8 @@
       .app{position:fixed;inset:0;overflow:hidden;}
       video#camera{
         position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-        transform:scaleX(-1); /* mirrored UX */
         background:#000;
+        transform:none !important; -webkit-transform:none !important; /* ensure non-mirrored camera */
       }
       /* UI */
       .hud{
@@ -104,7 +104,8 @@
        Camera 
       <video id="camera" muted playsinline autoplay></video>
 
-       Hidden target reference image (for detection) 
+       Hidden target reference image (for detection).
+           Replace src with your exact target reference if different. 
       <img id="refImg" alt="Target reference" crossOrigin="anonymous"
            src="graphite-target.png"
            style="position:absolute; left:-9999px; top:-9999px; width:320px; height:auto;" />
@@ -113,7 +114,7 @@
       <div class="hud">
         <header>
           <div class="title">Welcome to GRAPHITE SKETCH</div>
-          <div class="status" id="status">Tap Start to allow back camera. Then point at the image.</div>
+          <div class="status" id="status">Tap Start to allow back camera. Keep the target fully inside the frame.</div>
         </header>
         <div class="guide" id="guide"></div>
         <div class="controls">
@@ -128,7 +129,8 @@
         </div>
       </div>
 
-       AR Overlay (anchored where the image is detected) 
+       AR Overlay (anchored where the image is detected)
+           Replace the 3 GIFs below with your own files under ./assets/ 
       <div class="ar-layer" id="arLayer" aria-hidden="true">
         <img id="gif1" class="gif" src="1.gif" alt="" />
         <img id="gif2" class="gif" src="2.gif" alt="" />
@@ -148,14 +150,14 @@
       <canvas id="work" width="320" height="240"></canvas>
       <canvas id="tmpl" width="120" height="160"></canvas>
 
-       Background audio 
+       Background audio: replace with your MP3 under ./assets/music.mp3 
       <audio id="bgm" preload="auto">
         <source src="song.mp3" type="audio/mpeg" />
       </audio>
     </div>
 
     <script>
-      // ---- Utility: Speech greeting (optional, improves “say welcome” experience) ----
+      // ---- Utility: Speech greeting (optional) ----
       function sayWelcome(){
         try{
           const u = new SpeechSynthesisUtterance("Welcome to Graphite Sketch");
@@ -165,7 +167,7 @@
         }catch(e){}
       }
 
-      // ---- Camera setup (back camera) ----
+      // ---- Elements ----
       const video = document.getElementById('camera');
       const startBtn = document.getElementById('startBtn');
       const stopBtn = document.getElementById('stopBtn');
@@ -179,7 +181,9 @@
       const gif1 = document.getElementById('gif1');
       const gif2 = document.getElementById('gif2');
       const gif3 = document.getElementById('gif3');
+      const refImg = document.getElementById('refImg');
 
+      // ---- State ----
       let stream = null;
       let rafId = null;
       let scanning = false;
@@ -194,10 +198,16 @@
       const segDur = [5000, 5000, 5000]; // total 15000
       let tSeg1 = null, tSeg2 = null, tEnd = null;
 
+      let geoWatchId = null;
+      let currentLat = null, currentLng = null;
+      let homeLat = null, homeLng = null; // saved on bell click
+      const RADIUS_METERS = 30;
+
+      // ---- Camera ----
       async function startCamera(){
         try{
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" } , width:{ideal:1280}, height:{ideal:720} },
+            video: { facingMode: { ideal: "environment" }, width:{ideal:1280}, height:{ideal:720} },
             audio: false
           });
           video.srcObject = stream;
@@ -214,12 +224,11 @@
         }
       }
 
-      // ---- Image detection (template matching with downsampling & NCC) ----
+      // ---- Detection core: template preparation + NCC scanning ----
       const work = document.getElementById('work');
       const wctx = work.getContext('2d',{willReadFrequently:true});
       const tmpl = document.getElementById('tmpl');
       const tctx = tmpl.getContext('2d',{willReadFrequently:true});
-      const refImg = document.getElementById('refImg');
 
       let tW = 120, tH = 160;  // template size (downscaled)
       let tVec = null, tMean = 0, tNorm = 1;
@@ -227,7 +236,6 @@
       function toGray(data){
         const out = new Float32Array((data.length/4)|0);
         for(let i=0,j=0;i<data.length;i+=4,j++){
-          // luma
           out[j] = (0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2])/255;
         }
         return out;
@@ -251,7 +259,6 @@
         await new Promise(res=>{
           if(refImg.complete) res(); else refImg.onload = res;
         });
-        // Fit portrait-ish template
         const r = refImg.naturalHeight/refImg.naturalWidth;
         tH = Math.round(tW*r);
         tmpl.width = tW; tmpl.height = tH;
@@ -262,7 +269,6 @@
       }
 
       function findTarget(){
-        // Resize frame for speed
         const vw = video.videoWidth || 1280;
         const vh = video.videoHeight || 720;
         const scale = 360 / Math.min(vw, vh);
@@ -270,22 +276,16 @@
         const fh = Math.round(vh*scale);
 
         work.width = fw; work.height = fh;
-        wctx.save();
-        // Since video is mirrored with CSS, redraw mirrored so math matches screen
-        wctx.translate(fw,0); wctx.scale(-1,1);
         wctx.drawImage(video, 0, 0, fw, fh);
-        wctx.restore();
 
         const frame = wctx.getImageData(0,0,fw,fh);
         const fGray = toGray(frame.data);
         const winW = tW, winH = tH;
 
         let best = {score:-1, x:0, y:0, w:winW, h:winH};
-        const step = 8; // slide step
-        // Precompute window vec for each pos (naive, but OK at this scale)
+        const step = 8;
         for(let y=0;y<=fh-winH; y+=step){
           for(let x=0;x<=fw-winW; x+=step){
-            // Extract window
             const wVec = new Float32Array(winW*winH);
             let k=0;
             for(let yy=0;yy<winH;yy++){
@@ -300,10 +300,8 @@
           }
         }
 
-        // Convert back to screen coordinates
         const screenW = video.clientWidth;
         const screenH = video.clientHeight;
-        // Mapping from work canvas to video css box
         const rx = screenW/fw;
         const ry = screenH/fh;
 
@@ -327,7 +325,6 @@
       }
 
       function primeAudio() {
-        // attempt to satisfy autoplay policies using the Start button gesture
         return bgm.play().then(() => {
           bgm.pause();
           bgm.currentTime = 0;
@@ -340,23 +337,18 @@
       }
 
       function scheduleTimers(startOffsetMs){
-        // startOffsetMs: elapsed in current sequence
-        // figure current segment based on elapsed
         let acc = 0;
         currentSeg = 0;
         for (let i=0;i<segDur.length;i++){
           if(startOffsetMs < acc + segDur[i]) { currentSeg = i; break; }
           acc += segDur[i];
         }
-        // show correct GIF now
         showOnly([gif1, gif2, gif3][currentSeg]);
 
         const remainingInSeg = acc + segDur[currentSeg] - startOffsetMs;
-        // clear previous timers if any
         [tSeg1, tSeg2, tEnd].forEach(id => { if(id) clearTimeout(id); });
         tSeg1 = tSeg2 = tEnd = null;
 
-        // chain remaining segments to finish at 15s total
         if(currentSeg === 0){
           tSeg1 = setTimeout(()=>{ showOnly(gif2); currentSeg = 1; }, remainingInSeg);
           tSeg2 = setTimeout(()=>{ showOnly(gif3); currentSeg = 2; }, remainingInSeg + segDur[1]);
@@ -377,16 +369,22 @@
         seqStartTs = performance.now();
         elapsedMs = 0;
         currentSeg = 0;
+
+        const totalMs = Number.isFinite(bgm.duration) && bgm.duration>0 ? Math.round(bgm.duration*1000) : 15000;
+        segDur[0] = Math.floor(totalMs/3);
+        segDur[1] = Math.floor(totalMs/3);
+        segDur[2] = totalMs - segDur[0] - segDur[1];
+
         showOnly(gif1);
         arLayer.classList.add('active');
         statusEl.textContent = "Playing 3-part sequence…";
 
-        try{
-          bgm.currentTime = 0;
-          await bgm.play();
-        }catch(e){
-          // try to recover later when focus changes
-        }
+        (async ()=>{
+          try{
+            bgm.currentTime = 0;
+            await bgm.play();
+          }catch(e){}
+        })();
         bgm.onended = () => { finishOverlay(); };
 
         scheduleTimers(0);
@@ -397,18 +395,16 @@
         paused = true;
         elapsedMs += performance.now() - seqStartTs;
         try { bgm.pause(); } catch(e){}
-        // clear timers but keep playing=true so we know to resume
         [tSeg1, tSeg2, tEnd].forEach(id => { if(id) clearTimeout(id); });
         tSeg1 = tSeg2 = tEnd = null;
         arLayer.classList.remove('active');
-        statusEl.textContent = "Target lost. Hold the image in view to resume.";
+        statusEl.textContent = "Target lost or out of location. Hold the image in frame to resume.";
       }
 
       async function resumeSequence(){
         if(!playing || !paused) return;
         paused = false;
-        seqStartTs = performance.now(); // mark resume time
-        // resume audio safely
+        seqStartTs = performance.now();
         try { await bgm.play(); } catch(e){}
         scheduleTimers(elapsedMs);
         arLayer.classList.add('active');
@@ -433,7 +429,8 @@
         statusEl.textContent = "Initializing back camera…";
         await Promise.all([startCamera(), prepareTemplate()]);
         await primeAudio();
-        statusEl.textContent = "Point your camera at the reference image.";
+        startGeoWatch();
+        statusEl.textContent = "Keep the image fully inside the frame. When locked, tap the bell to save your location and start.";
         guide.style.borderColor = 'rgba(14,165,233,.45)';
 
         scanning = true;
@@ -443,6 +440,7 @@
         paused = false;
         missFrames = 0;
         arLayer.classList.remove('active');
+        bellBtn.style.display='none';
         scanLoop();
       }
 
@@ -454,18 +452,29 @@
         stopBtn.style.display='none';
         endScreen.classList.add('show');
         statusEl.textContent = "Session ended.";
+        bellBtn.style.display='none';
+        stopGeoWatch();
         stopCamera();
       }
 
       function restart(){
         endScreen.classList.remove('show');
         startBtn.style.display='inline-block';
-        statusEl.textContent = "Tap Start to allow back camera. Then point at the image.";
+        statusEl.textContent = "Tap Start to allow back camera. Keep the target in the frame.";
       }
 
       function scanLoop(){
         if(!scanning) return;
         const match = findTarget();
+
+        function insideGuide(rect){
+          const g = guide.getBoundingClientRect();
+          const leftOk = rect.left >= g.left + 4;
+          const topOk = rect.top >= g.top + 4;
+          const rightOk = (rect.left + rect.width) <= (g.right - 4);
+          const bottomOk = (rect.top + rect.height) <= (g.bottom - 4);
+          return leftOk && topOk && rightOk && bottomOk;
+        }
 
         if(match.score > 0.86){
           consecutiveHits++;
@@ -473,30 +482,40 @@
           arLayer.style.width = `${match.width}px`;
           arLayer.style.height = `${match.height}px`;
 
-          if(!locked && consecutiveHits>=3){
+          const inFrame = insideGuide(match);
+
+          if(!locked && consecutiveHits>=3 && inFrame){
             locked = true;
-            statusEl.textContent = "Target found.";
+            showSpark(match.left+match.width/2, match.top+match.height/2);
+            statusEl.textContent = "Target locked in frame. Tap the bell to save location and start.";
           }
-          if(locked){
-            if(!playing && !paused){
-              startSequence(); // auto start once target is stably detected
-            } else if(playing && paused){
-              resumeSequence(); // resume if we had paused due to target lost
-            } else if(playing){
+
+          if(locked && inFrame && !playing && !paused){
+            bellBtn.style.display='inline-flex';
+          }else{
+            bellBtn.style.display='none';
+          }
+
+          if(playing){
+            missFrames = 0;
+            const canPlayHere = (homeLat==null || withinRadius());
+            if(!inFrame || !canPlayHere){
+              if(!paused) pauseSequence();
+            }else{
+              if(paused) resumeSequence();
               arLayer.classList.add('active');
             }
-            missFrames = 0;
           }
         } else {
           consecutiveHits = 0;
-          if(!locked){
-            arLayer.classList.remove('active');
-          }
+          bellBtn.style.display='none';
           if(playing && !paused){
             missFrames++;
             if(missFrames > 8){
-              pauseSequence(); // pause overlay and music when target is lost
+              pauseSequence();
             }
+          }else{
+            arLayer.classList.remove('active');
           }
         }
 
@@ -507,13 +526,59 @@
       stopBtn.addEventListener('click', stopAR);
       restartBtn.addEventListener('click', restart);
 
+      bellBtn.addEventListener('click', ()=>{
+        if(!locked || playing) return;
+        if(!navigator.geolocation){
+          statusEl.textContent = "Geolocation not available; cannot save location.";
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(async (pos)=>{
+          homeLat = pos.coords.latitude;
+          homeLng = pos.coords.longitude;
+          statusEl.textContent = "Location saved. Starting…";
+          bellBtn.style.display='none';
+          startSequence();
+        }, ()=>{
+          statusEl.textContent = "Location permission denied. Cannot start.";
+        }, { enableHighAccuracy:true, timeout:5000 });
+      });
+
+      function haversineMeters(lat1, lon1, lat2, lon2){
+        if([lat1,lon1,lat2,lon2].some(v=>v==null)) return Infinity;
+        const toRad = d=>d*Math.PI/180;
+        const R=6371000;
+        const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+        return 2*R*Math.asin(Math.sqrt(a));
+      }
+      function withinRadius(){
+        if(homeLat==null || homeLng==null || currentLat==null || currentLng==null) return false;
+        return haversineMeters(currentLat,currentLng,homeLat,homeLng) <= RADIUS_METERS;
+      }
+      function startGeoWatch(){
+        if(!navigator.geolocation) return;
+        geoWatchId = navigator.geolocation.watchPosition(
+          (pos)=>{
+            currentLat = pos.coords.latitude;
+            currentLng = pos.coords.longitude;
+          },
+          ()=>{ /* ignore errors */ },
+          { enableHighAccuracy:true, maximumAge:2000, timeout:5000 }
+        );
+      }
+      function stopGeoWatch(){
+        if(geoWatchId!=null && navigator.geolocation){
+          navigator.geolocation.clearWatch(geoWatchId);
+          geoWatchId = null;
+        }
+      }
+
       document.addEventListener('DOMContentLoaded', () => {
-        // show Start button at load
         startBtn.style.display='inline-block';
-        statusEl.textContent = "Tap Start to allow back camera. Then point at the image.";
+        statusEl.textContent = "Tap Start to allow back camera. Keep the target fully inside the frame, then tap the bell.";
       }, { once: true });
 
-      // Hide GIF if missing file to avoid errors
+      // Hide GIFs if missing files to avoid errors
       [gif1, gif2, gif3].forEach(img=>{
         img.addEventListener('error', ()=>{ img.style.display='none'; }, {passive:true});
       })
