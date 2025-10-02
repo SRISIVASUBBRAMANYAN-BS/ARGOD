@@ -6,16 +6,15 @@
   <title>GRAPHITE SKETCH</title>
   <style>
     :root{
-      --bg:#0b0b0b;
-      --fg:#f9fafb;
-      --gold:#f6c445;
-      --accent:#ff7a1a;
-      --muted:#111214;
-      --ok:#19c37d;
-      --danger:#ff4d4f;
-      --card:#151618;
-      --shadow:0 10px 35px rgba(0,0,0,.35);
+      --bg:#0b0b0b;         /* background */
+      --fg:#f9fafb;         /* foreground */
+      --gold:#f6c445;       /* primary */
+      --accent:#ff7a1a;     /* accent */
+      --muted:#151618;      /* neutral card */
+      --ok:#19c37d;         /* success */
+      --danger:#ff4d4f;     /* danger */
       --radius:16px;
+      --shadow:0 10px 35px rgba(0,0,0,.35);
     }
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%}
@@ -29,34 +28,36 @@
     /* Start screen */
     .screen{
       position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg,#0a0b0d 0%, #0e0f12 100%);
+      z-index:20;
     }
-    #start{
-      background:linear-gradient(135deg,#111214,#0a0b0d);
-      gap:20px; flex-direction:column; text-align:center; padding:28px; min-width:280px; max-width:360px; border-radius:var(--radius);
-      box-shadow:var(--shadow); border:1px solid #1f2023;
+    #startCard{
+      background:linear-gradient(180deg,#111214,#0b0c0e);
+      border:1px solid #1f2023; border-radius:var(--radius);
+      padding:24px; width:min(92vw,380px);
+      box-shadow:var(--shadow);
+      display:flex; flex-direction:column; gap:14px; text-align:center;
     }
     .title{
       font-weight:800; font-size:22px; letter-spacing:.2px; line-height:1.2;
-      background:linear-gradient(180deg,#ffffff,#c7c7c7); -webkit-background-clip:text; background-clip:text; color:transparent;
+      background:linear-gradient(180deg,#ffffff,#cbcbcb); -webkit-background-clip:text; background-clip:text; color:transparent;
       text-wrap:balance;
     }
-    .sub{
-      font-size:13px; opacity:.8;
-    }
-    .actions{display:flex; gap:12px; margin-top:8px; width:100%; justify-content:center; flex-wrap:wrap}
+    .sub{font-size:13px; opacity:.85}
+    .actions{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:6px}
     .btn{
       appearance:none; border:none; outline:none; cursor:pointer; user-select:none;
       padding:12px 18px; border-radius:999px; font-weight:700; font-size:14px; letter-spacing:.2px;
       display:inline-flex; gap:10px; align-items:center; justify-content:center;
       box-shadow:var(--shadow); transition:.2s transform, .2s opacity, .2s box-shadow;
-      background:linear-gradient(135deg,var(--gold),var(--accent)); color:#1a1a1a;
+      background:linear-gradient(135deg,var(--gold),var(--accent)); color:#111;
     }
+    .btn:active{transform:scale(.98)}
     .btn.secondary{
       background:#1b1c1f; color:#e5e7eb; border:1px solid #2a2c31; box-shadow:none;
     }
-    .btn:active{transform:scale(.98)}
     .pill{
-      display:inline-flex; align-items:center; gap:8px; font-size:12px; background:#121316; border:1px solid #23252a; padding:8px 12px; border-radius:999px; color:#cbd5e1;
+      display:inline-flex; align-items:center; gap:8px; font-size:12px; background:#121316; border:1px solid #23252a; padding:8px 12px; border-radius:999px; color:#cbd5e1; justify-content:center;
     }
 
     /* Stage */
@@ -67,34 +68,27 @@
     #canvas{display:none}
 
     /* UI overlay */
-    #ui{
-      position:absolute; inset:0; pointer-events:none;
+    #ui{position:absolute; inset:0; pointer-events:none}
+    #loc{
+      position:absolute; top:14px; right:14px; pointer-events:auto; z-index:2;
     }
-    #frame{
-      position:absolute; width:300px; height:300px; border-radius:18px;
-      border:3px dashed var(--gold);
-      top:50%; left:50%; transform:translate(-50%,-50%);
-      box-shadow:0 0 32px rgba(246,196,69,.35);
-      transition:opacity .25s ease;
+    .toast{
+      position:absolute; top:64px; left:50%; transform:translateX(-50%);
+      background:#0f1013; border:1px solid #22252b; font-size:12px; padding:8px 12px; border-radius:10px; display:none; z-index:3;
     }
-    #hint{
-      position:absolute; top:18px; left:50%; transform:translateX(-50%);
-      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.08);
-      padding:10px 14px; border-radius:12px; font-size:12px; pointer-events:none; box-shadow:var(--shadow);
-    }
+    .toast.show{display:block}
     #status{
-      position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+      position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
       background:#101114; border:1px solid #23252a; color:#e5e7eb; padding:8px 12px; border-radius:10px; font-size:12px;
-      display:none;
+      display:none; z-index:3;
     }
     #status.show{display:block}
 
-    /* Location chip */
-    #loc{
-      position:absolute; top:18px; right:18px; pointer-events:auto;
-    }
+    /* Badges bottom-left */
+    #badges{position:absolute; bottom:16px; left:16px; display:flex; gap:8px; align-items:center; z-index:2}
+    .badge{font-size:11px; opacity:.75; background:#101114; border:1px solid #23252a; padding:6px 8px; border-radius:8px}
 
-    /* Bell (no external image) */
+    /* Bell button (inline SVG, no external image) */
     #bell{
       position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
       width:74px; height:74px; border-radius:999px; border:none; cursor:pointer;
@@ -102,16 +96,16 @@
       background:linear-gradient(135deg,var(--gold),var(--accent)); color:#111;
       box-shadow:0 10px 32px rgba(246,196,69,.35), inset 0 0 0 2px rgba(255,255,255,.35);
       transition:transform .2s ease, opacity .2s ease, box-shadow .2s ease;
-      pointer-events:none; opacity:0;
+      pointer-events:auto; opacity:1; z-index:2;
     }
-    #bell svg{width:34px; height:34px; fill:#111}
-    #bell.visible{pointer-events:auto; opacity:1}
     #bell:active{transform:translateX(-50%) scale(.96)}
+    #bell svg{width:34px; height:34px; fill:#111}
 
     /* Flowers */
     .flower{
       position:absolute; top:-10%; font-size:28px; filter:drop-shadow(0 4px 10px rgba(0,0,0,.45));
       animation:fall 3.6s linear forwards;
+      z-index:1;
     }
     @keyframes fall{
       0%{transform:translateY(-10%) rotate(0deg); opacity:0}
@@ -123,41 +117,28 @@
     .overlay{
       position:absolute; object-fit:cover; border-radius:12px; display:none;
       box-shadow:0 8px 32px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.08);
+      z-index:2;
     }
     .overlay.show{display:block}
-
-    /* Tiny toasts */
-    .toast{
-      position:absolute; top:70px; left:50%; transform:translateX(-50%);
-      background:#0f1013; border:1px solid #22252b; font-size:12px; padding:8px 12px; border-radius:10px; display:none;
-    }
-    .toast.show{display:block}
-
-    /* Small badges bottom-left */
-    #badges{
-      position:absolute; bottom:16px; left:16px; display:flex; gap:8px; align-items:center;
-    }
-    .badge{font-size:11px; opacity:.7; background:#101114; border:1px solid #23252a; padding:6px 8px; border-radius:8px}
-
-    /* Hide frame when locked */
-    .hidden{opacity:0}
   </style>
 </head>
 <body>
    Start 
   <div class="screen" id="start">
-    <div class="pill" aria-live="polite">
-      <span>Camera + Location</span>
-      <span style="width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block"></span>
-    </div>
-    <h1 class="title">GRAPHITE SKETCH</h1>
-    <p class="sub">AR DHARSHAN.</p>
-    <div class="actions">
-      <button class="btn" id="go">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10.012 10.012 0 0 0 12 2Zm1 14.93V13h3.93A8.016 8.016 0 0 1 13 16.93ZM7.07 11A5.014 5.014 0 0 1 11 7.07V11ZM13 11V7.07A5.014 5.014 0 0 1 16.93 11Zm-2 2v3.93A8.016 8.016 0 0 1 7.07 13ZM4.07 13H7v3a1 1 0 0 0 1 1h3v2.93A8.013 8.013 0 0 1 4.07 13ZM20 13A8.013 8.013 0 0 1 13 20v-3h3a1 1 0 0 0 1-1v-3Z"></path></svg>
-        Start
-      </button>
-      <button class="btn secondary" id="locOnly">Enable Location</button>
+    <div id="startCard">
+      <div class="pill" aria-live="polite">
+        <span>Camera + Location</span>
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block"></span>
+      </div>
+      <h1 class="title">GRAPHITE SKETCH AR DARSHAN</h1>
+      <p class="sub">Simple. Tap Start.</p>
+      <div class="actions">
+        <button class="btn" id="go">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10.012 10.012 0 0 0 12 2Zm1 14.93V13h3.93A8.016 8.016 0 0 1 13 16.93ZM7.07 11A5.014 5.014 0 0 1 11 7.07V11ZM13 11V7.07A5.014 5.014 0 0 1 16.93 11Zm-2 2v3.93A8.016 8.016 0 0 1 7.07 13ZM4.07 13H7v3a1 1 0 0 0 1 1h3v2.93A8.013 8.013 0 0 1 4.07 13ZM20 13A8.013 8.013 0 0 1 13 20v-3h3a1 1 0 0 0 1-1v-3Z"></path></svg>
+          Start
+        </button>
+        <button class="btn secondary" id="locOnly">Enable Location</button>
+      </div>
     </div>
   </div>
 
@@ -167,14 +148,12 @@
     <canvas id="canvas"></canvas>
 
     <div id="ui" aria-hidden="false">
-      <div id="frame" aria-label="Align target"></div>
-      <div id="hint" class="pill">Align inside the frame</div>
-
       <div id="loc">
         <div class="pill" id="locText">Loc: — , —</div>
       </div>
 
       <div class="toast" id="toast"></div>
+      <div id="status" aria-live="polite"></div>
 
       <button id="bell" aria-label="Start">
          Inline bell icon (no external image) 
@@ -187,8 +166,6 @@
         <div class="badge" id="camBadge">Camera: —</div>
         <div class="badge" id="geoBadge">Location: —</div>
       </div>
-
-      <div id="status" aria-live="polite"></div>
     </div>
   </div>
 
@@ -198,6 +175,7 @@
   </audio>
 
   <script>
+    // Elements
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -206,8 +184,6 @@
     const btnGo = document.getElementById('go');
     const btnLocOnly = document.getElementById('locOnly');
 
-    const frame = document.getElementById('frame');
-    const hint = document.getElementById('hint');
     const bell = document.getElementById('bell');
     const locText = document.getElementById('locText');
     const toast = document.getElementById('toast');
@@ -219,29 +195,26 @@
 
     // Config
     const CONFIG = {
-      matchThreshold: 0.65,       // brightness range check (simple)
-      stableFrames: 15,           // frames needed before showing bell
-      flowersBurstCount: 160,     // more flowers
-      flowersBurstDuration: 3500, // ms
+      flowersBurstCount: 240,     // more flowers
+      flowersBurstDuration: 3800, // ms
       gifDuration: 2600,          // ms each
       overlaySize: 280,           // px
-      desiredRadiusMeters: 5      // show current lat/lon; lock to captured location
+      desiredRadiusMeters: 5      // require proximity to saved location
     };
 
-    // If you place GIFs next to this file, set paths here. If missing, a fallback sparkle appears.
-    const GIFS = ['1.gif','2.gif','2.gif'];
+    // Provide GIF names next to this HTML (optional). If missing, we show a sparkle fallback.
+    const GIFS = ['1.gif', '2.gif', '2.gif'];
 
     const state = {
-      stableCount: 0,
       locked: false,
       isPlaying: false,
-      lockPos: null,
       hasCamera: false,
       hasLocation: false,
       currentLat: null,
       currentLon: null,
       savedLat: null,
-      savedLon: null
+      savedLon: null,
+      lockPos: null
     };
 
     function showToast(msg, ms=1500){
@@ -261,6 +234,7 @@
       geoBadge.textContent = 'Location: ' + (state.hasLocation ? 'On' : 'Off');
     }
 
+    // Haversine distance
     function metersBetween(lat1, lon1, lat2, lon2){
       const R = 6371000;
       const toRad = d => d*Math.PI/180;
@@ -281,26 +255,34 @@
           const { latitude, longitude } = pos.coords;
           state.currentLat = latitude;
           state.currentLon = longitude;
-          state.savedLat = latitude; // lock desired to actual
-          state.savedLon = longitude;
           state.hasLocation = true;
           locText.textContent = 'Loc: ' + latitude.toFixed(6) + ', ' + longitude.toFixed(6);
           setBadges();
           showStatus('Location enabled');
         },
-        (err)=>{
+        ()=>{
           state.hasLocation = false;
           setBadges();
           showToast('Enable location to continue', 1800);
         },
         { enableHighAccuracy:true, timeout:8000, maximumAge:0 }
       );
-      // Watch position to update pill
+      // Watch for updates
       try{
         navigator.geolocation.watchPosition((pos)=>{
           state.currentLat = pos.coords.latitude;
           state.currentLon = pos.coords.longitude;
           locText.textContent = 'Loc: ' + state.currentLat.toFixed(6) + ', ' + state.currentLon.toFixed(6);
+          // If user moves away from saved location, stop overlay
+          if(state.savedLat!=null){
+            const d = metersBetween(state.savedLat, state.savedLon, state.currentLat, state.currentLon);
+            if(d > CONFIG.desiredRadiusMeters){
+              if(state.isPlaying){
+                stopOverlay();
+                showStatus('Return to saved spot', 1200);
+              }
+            }
+          }
         });
       }catch{}
     }
@@ -322,53 +304,11 @@
         state.hasCamera = true;
         setBadges();
         showStatus('Camera started');
-        requestAnimationFrame(loop);
-      }catch(err){
+      }catch{
         state.hasCamera = false;
         setBadges();
         showToast('Camera permission needed', 1800);
       }
-    }
-
-    // Detection (simple)
-    function loop(){
-      if(state.locked) return;
-      if(!video.videoWidth) return requestAnimationFrame(loop);
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Area under frame
-      const vr = video.getBoundingClientRect();
-      const fr = frame.getBoundingClientRect();
-      const x = ((fr.left - vr.left) / vr.width) * canvas.width;
-      const y = ((fr.top  - vr.top)  / vr.height)* canvas.height;
-      const w = (fr.width / vr.width) * canvas.width;
-      const h = (fr.height/ vr.height)* canvas.height;
-
-      let ok = false;
-      try{
-        const imageData = ctx.getImageData(x,y,w,h);
-        const data = imageData.data;
-        let brightness = 0;
-        for(let i=0;i<data.length;i+=4){
-          brightness += (data[i] + data[i+1] + data[i+2]) / 3;
-        }
-        brightness /= (data.length/4);
-        // heuristic band
-        ok = brightness > 50 && brightness < 200;
-      }catch{ ok = false; }
-
-      if(ok){
-        state.stableCount++;
-        if(state.stableCount >= CONFIG.stableFrames){
-          bell.classList.add('visible');
-        }
-      }else{
-        state.stableCount = 0;
-        bell.classList.remove('visible');
-      }
-
-      requestAnimationFrame(loop);
     }
 
     // Music
@@ -384,7 +324,7 @@
           osc = audioCtx.createOscillator();
           gain = audioCtx.createGain();
           osc.type = 'sine';
-          osc.frequency.value = 432; // calm
+          osc.frequency.value = 432;
           gain.gain.value = 0.06;
           osc.connect(gain).connect(audioCtx.destination);
           osc.start();
@@ -399,7 +339,7 @@
       }catch{}
     }
 
-    // Flower rain (no smoke, no aarti)
+    // Flowers (no smoke, no aarti)
     function flowerEmoji(){
       const set = ['🌸','🌸','💮','🌸','💮','💮'];
       return set[(Math.random()*set.length)|0];
@@ -415,15 +355,14 @@
         d.textContent = flowerEmoji();
         d.style.left = (Math.random()*100) + 'vw';
         d.style.fontSize = (24 + Math.random()*12) + 'px';
-        d.style.animationDuration = (2.6 + Math.random()*2.0) + 's';
+        d.style.animationDuration = (2.4 + Math.random()*2.2) + 's';
         stage.appendChild(d);
         setTimeout(()=>d.remove(), 4200);
       }
 
       function tick(now){
         if(now - start < ms && spawned < count){
-          // spawn fast
-          for(let i=0;i<4;i++){
+          for(let i=0;i<5;i++){ // heavier
             spawnOne(); spawned++;
             if(spawned >= count) break;
           }
@@ -433,110 +372,126 @@
       requestAnimationFrame(tick);
     }
 
-    // GIF sequence (with fallback)
-    async function playGifsAtLocked(){
-      const overlay = document.createElement('img');
-      overlay.className = 'overlay';
-      document.body.appendChild(overlay);
+    // Overlay control
+    let overlayEl = null, fallbackEl = null, overlayTimer = null;
+    function setOverlayRect(){
+      if(!state.lockPos) return;
+      const el = overlayEl || fallbackEl;
+      if(!el) return;
+      el.style.left = (state.lockPos.x - state.lockPos.w/2) + 'px';
+      el.style.top  = (state.lockPos.y - state.lockPos.h/2) + 'px';
+      el.style.width = state.lockPos.w + 'px';
+      el.style.height= state.lockPos.h + 'px';
+    }
+    function stopOverlay(){
+      state.locked = false;
+      state.isPlaying = false;
+      if(overlayTimer){ clearTimeout(overlayTimer); overlayTimer = null; }
+      if(overlayEl){ overlayEl.remove(); overlayEl = null; }
+      if(fallbackEl){ fallbackEl.remove(); fallbackEl = null; }
+      stopMusic();
+    }
 
-      const setOverlayRect = ()=>{
-        if(!state.lockPos) return;
-        overlay.style.left = (state.lockPos.x - state.lockPos.w/2) + 'px';
-        overlay.style.top  = (state.lockPos.y - state.lockPos.h/2) + 'px';
-        overlay.style.width = state.lockPos.w + 'px';
-        overlay.style.height= state.lockPos.h + 'px';
-      };
+    async function playGifsAtLocked(){
+      overlayEl = document.createElement('img');
+      overlayEl.className = 'overlay';
+      document.body.appendChild(overlayEl);
+
+      fallbackEl = document.createElement('div');
+      fallbackEl.className = 'overlay';
+      fallbackEl.style.backdropFilter = 'blur(2px)';
+      fallbackEl.style.background = 'linear-gradient(135deg, rgba(246,196,69,.25), rgba(255,122,26,.25))';
+      fallbackEl.style.color = '#fff';
+      fallbackEl.style.fontSize = '42px';
+      fallbackEl.style.display = 'grid';
+      fallbackEl.style.placeItems = 'center';
+      fallbackEl.textContent = '✨';
+      document.body.appendChild(fallbackEl);
+
       setOverlayRect();
 
-      // fallback node
-      const fallback = document.createElement('div');
-      fallback.className = 'overlay';
-      fallback.style.display = 'none';
-      fallback.style.backdropFilter = 'blur(2px)';
-      fallback.style.background = 'linear-gradient(135deg, rgba(246,196,69,.2), rgba(255,122,26,.2))';
-      fallback.style.color = '#fff';
-      fallback.style.fontSize = '42px';
-      fallback.style.display = 'grid';
-      fallback.style.placeItems = 'center';
-      fallback.textContent = '✨';
-      document.body.appendChild(fallback);
-      const setFallbackRect = ()=>{
-        if(!state.lockPos) return;
-        fallback.style.left = (state.lockPos.x - state.lockPos.w/2) + 'px';
-        fallback.style.top  = (state.lockPos.y - state.lockPos.h/2) + 'px';
-        fallback.style.width = state.lockPos.w + 'px';
-        fallback.style.height= state.lockPos.h + 'px';
-      };
-      setFallbackRect();
-
       const runOne = (src)=> new Promise((resolve)=>{
-        let shown = false;
-        overlay.onload = ()=>{
-          fallback.style.display = 'none';
-          overlay.classList.add('show');
-          shown = true;
-          setTimeout(()=>resolve(), CONFIG.gifDuration);
+        let showed = false;
+        overlayEl.onload = ()=>{
+          fallbackEl.style.display = 'none';
+          overlayEl.classList.add('show');
+          showed = true;
+          overlayTimer = setTimeout(()=>resolve(), CONFIG.gifDuration);
         };
-        overlay.onerror = ()=>{
-          overlay.classList.remove('show');
-          // fallback sparkle
-          fallback.style.display = 'block';
-          setTimeout(()=>resolve(), CONFIG.gifDuration);
+        overlayEl.onerror = ()=>{
+          overlayEl.classList.remove('show');
+          fallbackEl.style.display = 'grid';
+          overlayTimer = setTimeout(()=>resolve(), CONFIG.gifDuration);
         };
-        overlay.src = src + '?t=' + Date.now(); // bust cache
+        overlayEl.src = src + '?t=' + Date.now();
       });
 
-      // loop forever while locked
       state.isPlaying = true;
       while(state.locked){
+        // If moved away, stop
+        if(state.savedLat!=null && state.currentLat!=null){
+          const d = metersBetween(state.savedLat, state.savedLon, state.currentLat, state.currentLon);
+          if(d > CONFIG.desiredRadiusMeters){
+            stopOverlay();
+            showStatus('Return to saved spot', 1100);
+            break;
+          }
+        }
         for(const src of GIFS){
-          await runOne(src);
-          setOverlayRect(); setFallbackRect();
           if(!state.locked) break;
+          await runOne(src);
+          setOverlayRect();
         }
       }
-      overlay.remove();
-      fallback.remove();
     }
 
     // Bell
     bell.addEventListener('click', async ()=>{
       if(state.locked) return;
 
-      // ensure we display at saved location (just record now)
+      // Require location
+      if(!state.hasLocation || state.currentLat==null){
+        showToast('Enable location first', 1500);
+        return;
+      }
+
+      // Save desired location now
       state.savedLat = state.currentLat;
       state.savedLon = state.currentLon;
 
-      // lock UI position (center of frame on screen)
+      // Gate: must be near saved location (first time always passes)
+      const d = metersBetween(state.savedLat, state.savedLon, state.currentLat, state.currentLon);
+      if(d > CONFIG.desiredRadiusMeters){
+        showStatus('Go to your saved spot', 1200);
+        return;
+      }
+
+      // Lock UI position (center of screen)
       const vr = video.getBoundingClientRect();
-      const fr = frame.getBoundingClientRect();
       state.lockPos = {
-        x: fr.left - vr.left + fr.width/2,
-        y: fr.top  - vr.top  + fr.height/2,
-        w: Math.min(fr.width, CONFIG.overlaySize),
-        h: Math.min(fr.height, CONFIG.overlaySize),
+        x: vr.left + vr.width/2,
+        y: vr.top  + vr.height/2,
+        w: Math.min(280, vr.width*0.55),
+        h: Math.min(280, vr.height*0.55),
       };
 
       state.locked = true;
-      bell.classList.remove('visible');
-      frame.classList.add('hidden');
-      hint.classList.add('hidden');
-
       showStatus('Starting', 900);
       await startMusic();
 
-      // big flower rain
+      // More flowers first
       burstFlowers();
 
-      // then gifs
+      // Then GIFs loop
       playGifsAtLocked();
     });
 
-    // Start button
+    // Start
     btnGo.addEventListener('click', async ()=>{
       requestGeo();
       await startCamera();
       startScreen.style.display = 'none';
+      showToast('Ready');
     });
 
     btnLocOnly.addEventListener('click', ()=>{
@@ -544,30 +499,23 @@
       showStatus('Requesting location…');
     });
 
-    // Resume music on visibility change
+    // Resume/stop music on visibility change
     document.addEventListener('visibilitychange', ()=>{
-      if(document.hidden){ stopMusic(); }
-      else if(state.locked){ startMusic(); }
+      if(document.hidden){
+        stopMusic();
+      }else if(state.locked){
+        startMusic();
+      }
     });
 
-    // Resize handler updates canvas and keeps UI sensible
+    // Resize keeps canvas in sync and overlay centered
     window.addEventListener('resize', ()=>{
       if(video.videoWidth){
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
+        setOverlayRect();
       }
     });
-
-    // Small periodic check to ensure the overlay is used at saved lat/lon (displayed pill)
-    setInterval(()=>{
-      if(state.savedLat!=null && state.currentLat!=null){
-        const d = metersBetween(state.savedLat, state.savedLon, state.currentLat, state.currentLon);
-        // display a quiet badge if moved away
-        if(d > CONFIG.desiredRadiusMeters){
-          showStatus('Stay near your saved location', 800);
-        }
-      }
-    }, 4000);
   </script>
 </body>
 </html>
