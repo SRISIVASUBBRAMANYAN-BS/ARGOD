@@ -1,614 +1,573 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GRAPHITE SKETCH</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <style>
-    :root {
-      --bg: #0b0e13;
-      --fg: #e7eaee;
-      --accent: #f5bf42; /* bell + frame accent */
-      --muted: #8892a0;
-      --danger: #ff4d4f;
-      --ok: #36d399;
+    :root{
+      --bg:#0b0b0b;
+      --fg:#f9fafb;
+      --gold:#f6c445;
+      --accent:#ff7a1a;
+      --muted:#111214;
+      --ok:#19c37d;
+      --danger:#ff4d4f;
+      --card:#151618;
+      --shadow:0 10px 35px rgba(0,0,0,.35);
+      --radius:16px;
     }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
-    button { font: inherit; }
-    .app {
-      position: relative;
-      height: 100dvh;
-      width: 100vw;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--bg);
-    }
-    .video-wrap {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      background: #000;
-    }
-    video {
-      max-width: 100%;
-      max-height: 100%;
-      width: 100vw;
-      height: 100dvh;
-      object-fit: contain; /* critical for accurate mapping */
-      background: #000;
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      background:var(--bg);
+      color:var(--fg);
+      font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol;
+      overflow:hidden;
     }
 
-    /* UI header row */
-    .top-ui {
-      position: absolute;
-      top: 8px; /* lifted up as requested */
-      left: 0;
-      right: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      pointer-events: none;
+    /* Start screen */
+    .screen{
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
     }
-    .status {
-      pointer-events: auto;
-      background: rgba(0,0,0,0.5);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px;
-      padding: 6px 10px;
-      font-size: 12px;
-      line-height: 1.2;
-      color: var(--fg);
-      max-width: 70%;
+    #start{
+      background:linear-gradient(135deg,#111214,#0a0b0d);
+      gap:20px; flex-direction:column; text-align:center; padding:28px; min-width:280px; max-width:360px; border-radius:var(--radius);
+      box-shadow:var(--shadow); border:1px solid #1f2023;
     }
-    .status strong { color: var(--accent); }
-
-    /* Bell icon button (fixed UI) */
-    .bell-btn {
-      pointer-events: auto;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 44px;
-      height: 44px;
-      border-radius: 999px;
-      border: 2px solid var(--accent);
-      color: var(--accent);
-      background: rgba(0,0,0,0.35);
-      transition: transform 0.15s ease, background 0.15s ease;
-      cursor: pointer;
+    .title{
+      font-weight:800; font-size:22px; letter-spacing:.2px; line-height:1.2;
+      background:linear-gradient(180deg,#ffffff,#c7c7c7); -webkit-background-clip:text; background-clip:text; color:transparent;
+      text-wrap:balance;
     }
-    .bell-btn:hover { transform: translateY(-1px) scale(1.02); background: rgba(245,191,66,0.15); }
-    .bell-btn:active { transform: translateY(0) scale(0.98); }
-    .bell-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-
-    /* Center overlay hints and frame */
-    .center-ui {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      pointer-events: none;
-      padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    .sub{
+      font-size:13px; opacity:.8;
+    }
+    .actions{display:flex; gap:12px; margin-top:8px; width:100%; justify-content:center; flex-wrap:wrap}
+    .btn{
+      appearance:none; border:none; outline:none; cursor:pointer; user-select:none;
+      padding:12px 18px; border-radius:999px; font-weight:700; font-size:14px; letter-spacing:.2px;
+      display:inline-flex; gap:10px; align-items:center; justify-content:center;
+      box-shadow:var(--shadow); transition:.2s transform, .2s opacity, .2s box-shadow;
+      background:linear-gradient(135deg,var(--gold),var(--accent)); color:#1a1a1a;
+    }
+    .btn.secondary{
+      background:#1b1c1f; color:#e5e7eb; border:1px solid #2a2c31; box-shadow:none;
+    }
+    .btn:active{transform:scale(.98)}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px; font-size:12px; background:#121316; border:1px solid #23252a; padding:8px 12px; border-radius:999px; color:#cbd5e1;
     }
 
-    .frame-wrap {
-      position: relative;
-      width: min(80vw, 80vh); /* square guidance frame */
-      aspect-ratio: 1 / 1;
-      border: 3px dashed var(--accent);
-      border-radius: 12px;
-      background: rgba(245, 191, 66, 0.05);
-      display: grid;
-      place-items: center;
+    /* Stage */
+    #stage{position:relative; width:100vw; height:100vh; overflow:hidden}
+    #video{
+      position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:brightness(.96) contrast(1.02);
     }
-    .hint {
-      position: absolute;
-      bottom: -36px;
-      left: 0; right: 0;
-      text-align: center;
-      font-size: 13px;
-      color: var(--muted);
+    #canvas{display:none}
+
+    /* UI overlay */
+    #ui{
+      position:absolute; inset:0; pointer-events:none;
+    }
+    #frame{
+      position:absolute; width:300px; height:300px; border-radius:18px;
+      border:3px dashed var(--gold);
+      top:50%; left:50%; transform:translate(-50%,-50%);
+      box-shadow:0 0 32px rgba(246,196,69,.35);
+      transition:opacity .25s ease;
+    }
+    #hint{
+      position:absolute; top:18px; left:50%; transform:translateX(-50%);
+      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.08);
+      padding:10px 14px; border-radius:12px; font-size:12px; pointer-events:none; box-shadow:var(--shadow);
+    }
+    #status{
+      position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+      background:#101114; border:1px solid #23252a; color:#e5e7eb; padding:8px 12px; border-radius:10px; font-size:12px;
+      display:none;
+    }
+    #status.show{display:block}
+
+    /* Location chip */
+    #loc{
+      position:absolute; top:18px; right:18px; pointer-events:auto;
     }
 
-    /* Overlay container that will be aligned to the frame region (no clipping) */
-    .overlay {
-      position: absolute;
-      /* size/position set dynamically to match the frame region */
-      pointer-events: none;
-      transform-origin: center center;
-      /* no clipping so GIF doesn’t get cut by container box */
-      overflow: visible;
-      display: none; /* hidden until playing */
+    /* Bell (no external image) */
+    #bell{
+      position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+      width:74px; height:74px; border-radius:999px; border:none; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg,var(--gold),var(--accent)); color:#111;
+      box-shadow:0 10px 32px rgba(246,196,69,.35), inset 0 0 0 2px rgba(255,255,255,.35);
+      transition:transform .2s ease, opacity .2s ease, box-shadow .2s ease;
+      pointer-events:none; opacity:0;
     }
-    .overlay img {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: contain; /* fill entire image area without cutting */
-      image-rendering: auto;
-      will-change: transform;
+    #bell svg{width:34px; height:34px; fill:#111}
+    #bell.visible{pointer-events:auto; opacity:1}
+    #bell:active{transform:translateX(-50%) scale(.96)}
+
+    /* Flowers */
+    .flower{
+      position:absolute; top:-10%; font-size:28px; filter:drop-shadow(0 4px 10px rgba(0,0,0,.45));
+      animation:fall 3.6s linear forwards;
+    }
+    @keyframes fall{
+      0%{transform:translateY(-10%) rotate(0deg); opacity:0}
+      6%{opacity:1}
+      100%{transform:translateY(115vh) rotate(360deg); opacity:.0}
     }
 
-    /* Start button and End screen */
-    .start-wrap, .end-wrap {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      background: linear-gradient(180deg, rgba(11,14,19,0.9), rgba(11,14,19,0.6));
-      backdrop-filter: blur(4px);
-      padding: 24px;
-      text-align: center;
+    /* GIF overlay (or fallback) */
+    .overlay{
+      position:absolute; object-fit:cover; border-radius:12px; display:none;
+      box-shadow:0 8px 32px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.08);
     }
-    .start-card, .end-card {
-      background: rgba(0,0,0,0.55);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 14px;
-      padding: 16px 18px;
-      max-width: 560px;
-    }
-    .start-card h1, .end-card h2 { margin: 0 0 8px; font-weight: 700; font-size: 18px; }
-    .start-card p, .end-card p { margin: 0 0 14px; font-size: 14px; color: var(--muted); }
-    .primary {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 14px;
-      border-radius: 10px;
-      border: 1px solid var(--accent);
-      color: #0b0e13;
-      background: var(--accent);
-      cursor: pointer;
-      transition: transform 0.15s ease, filter 0.15s ease;
-      font-weight: 600;
-    }
-    .primary:hover { filter: brightness(1.05); transform: translateY(-1px); }
-    .primary:active { transform: translateY(0); }
+    .overlay.show{display:block}
 
-    .pill {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.08);
-      color: var(--fg);
-      font-size: 12px;
+    /* Tiny toasts */
+    .toast{
+      position:absolute; top:70px; left:50%; transform:translateX(-50%);
+      background:#0f1013; border:1px solid #22252b; font-size:12px; padding:8px 12px; border-radius:10px; display:none;
     }
+    .toast.show{display:block}
 
-    .small {
-      font-size: 12px;
-      color: var(--muted);
+    /* Small badges bottom-left */
+    #badges{
+      position:absolute; bottom:16px; left:16px; display:flex; gap:8px; align-items:center;
     }
+    .badge{font-size:11px; opacity:.7; background:#101114; border:1px solid #23252a; padding:6px 8px; border-radius:8px}
 
-    /* Visual confidence indicator */
-    .confidence {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(0,0,0,0.35);
-      color: var(--fg);
-    }
-    .dot {
-      width: 8px; height: 8px; border-radius: 999px; background: var(--danger);
-    }
-    .dot.ok { background: var(--ok); }
+    /* Hide frame when locked */
+    .hidden{opacity:0}
   </style>
 </head>
 <body>
-  <div class="app" id="app">
-    <div class="video-wrap" id="videoWrap">
-      <video id="video" playsinline autoplay muted></video>
+   Start 
+  <div class="screen" id="start">
+    <div class="pill" aria-live="polite">
+      <span>Camera + Location</span>
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block"></span>
     </div>
+    <h1 class="title">GRAPHITE SKETCH</h1>
+    <p class="sub">AR DHARSHAN.</p>
+    <div class="actions">
+      <button class="btn" id="go">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10.012 10.012 0 0 0 12 2Zm1 14.93V13h3.93A8.016 8.016 0 0 1 13 16.93ZM7.07 11A5.014 5.014 0 0 1 11 7.07V11ZM13 11V7.07A5.014 5.014 0 0 1 16.93 11Zm-2 2v3.93A8.016 8.016 0 0 1 7.07 13ZM4.07 13H7v3a1 1 0 0 0 1 1h3v2.93A8.013 8.013 0 0 1 4.07 13ZM20 13A8.013 8.013 0 0 1 13 20v-3h3a1 1 0 0 0 1-1v-3Z"></path></svg>
+        Start
+      </button>
+      <button class="btn secondary" id="locOnly">Enable Location</button>
+    </div>
+  </div>
 
-     Top UI: status + bell 
-    <div class="top-ui">
-      <div class="status" id="status">
-        <div><strong>Step 1</strong> — Align your image inside the golden frame</div>
-        <div><strong>Step 2</strong> — Tap the bell to lock and start</div>
-        <div id="latlng" class="small">Lat: -, Long: -</div>
+   Stage 
+  <div id="stage" role="application" aria-label="AR Flowers stage">
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="canvas"></canvas>
+
+    <div id="ui" aria-hidden="false">
+      <div id="frame" aria-label="Align target"></div>
+      <div id="hint" class="pill">Align inside the frame</div>
+
+      <div id="loc">
+        <div class="pill" id="locText">Loc: — , —</div>
       </div>
-      <button class="bell-btn" id="bellBtn" title="Lock and Start" disabled>
-         Bell icon (SVG) 
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M12 2a6 6 0 0 0-6 6v2.278c0 .49-.195.961-.542 1.308L4.3 12.744A2 2 0 0 0 5.707 16h12.586A2 2 0 0 0 19.7 12.744l-1.158-1.158a1.85 1.85 0 0 1-.542-1.308V8a6 6 0 0 0-6-6Zm0 20a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3Z"/>
+
+      <div class="toast" id="toast"></div>
+
+      <button id="bell" aria-label="Start">
+         Inline bell icon (no external image) 
+        <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+          <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2Zm6-6v-5c0-3.1-1.6-5.6-4.5-6.3V4a1.5 1.5 0 0 0-3 0v.7C7.6 5.4 6 8 6 11v5l-2 2v1h16v-1Z"/>
         </svg>
       </button>
-    </div>
 
-     Center frame hint 
-    <div class="center-ui" id="centerUi">
-      <div class="frame-wrap" id="guideFrame">
-        <div class="hint">
-          Place the image fully inside this frame, then tap the bell
-        </div>
+      <div id="badges">
+        <div class="badge" id="camBadge">Camera: —</div>
+        <div class="badge" id="geoBadge">Location: —</div>
       </div>
+
+      <div id="status" aria-live="polite"></div>
     </div>
-
-     Overlay container that matches frame position/size 
-    <div class="overlay" id="overlay">
-      <img id="overlayImg" alt="AR overlay" />
-    </div>
-
-     Start overlay 
-    <div class="start-wrap" id="startWrap">
-      <div class="start-card">
-        <h1>Start Camera</h1>
-        <p class="small" style="margin-bottom: 10px;"></p>
-        <button class="primary" id="startBtn">Enable Camera</button>
-      </div>
-    </div>
-
-     End overlay 
-    <div class="end-wrap" id="endWrap" style="display:none;">
-      <div class="end-card">
-        <h2>Session Ended</h2>
-        <p>Thanks! You can refresh the page to start again.</p>
-        <div class="pill" id="summary">Locked at Lat -, Long -</div>
-      </div>
-    </div>
-
-     Hidden canvases for processing 
-    <canvas id="proc" width="320" height="240" style="display:none;"></canvas>
-    <canvas id="roi" width="40" height="40" style="display:none;"></canvas>
-
-     Audio element (primed on bell click) 
-    <audio id="music" preload="auto" src="song.mp3" crossorigin="anonymous"></audio>
   </div>
+
+   Optional song file. If missing, a soft tone fallback will play. 
+  <audio id="bgMusic" loop>
+    <source src="song.mp3" type="audio/mpeg" />
+  </audio>
 
   <script>
     const video = document.getElementById('video');
-    const videoWrap = document.getElementById('videoWrap');
-    const startWrap = document.getElementById('startWrap');
-    const startBtn = document.getElementById('startBtn');
-    const endWrap = document.getElementById('endWrap');
-    const summary = document.getElementById('summary');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    const guideFrame = document.getElementById('guideFrame');
-    const centerUi = document.getElementById('centerUi');
-    const bellBtn = document.getElementById('bellBtn');
+    const startScreen = document.getElementById('start');
+    const btnGo = document.getElementById('go');
+    const btnLocOnly = document.getElementById('locOnly');
 
-    const statusBox = document.getElementById('status');
-    const latlngBox = document.getElementById('latlng');
+    const frame = document.getElementById('frame');
+    const hint = document.getElementById('hint');
+    const bell = document.getElementById('bell');
+    const locText = document.getElementById('locText');
+    const toast = document.getElementById('toast');
+    const statusEl = document.getElementById('status');
+    const camBadge = document.getElementById('camBadge');
+    const geoBadge = document.getElementById('geoBadge');
 
-    const overlay = document.getElementById('overlay');
-    const overlayImg = document.getElementById('overlayImg');
+    const bgMusic = document.getElementById('bgMusic');
 
-    const proc = document.getElementById('proc');
-    const ctx = proc.getContext('2d', { willReadFrequently: true });
-    const roi = document.getElementById('roi');
-    const rctx = roi.getContext('2d', { willReadFrequently: true });
+    // Config
+    const CONFIG = {
+      matchThreshold: 0.65,       // brightness range check (simple)
+      stableFrames: 15,           // frames needed before showing bell
+      flowersBurstCount: 160,     // more flowers
+      flowersBurstDuration: 3500, // ms
+      gifDuration: 2600,          // ms each
+      overlaySize: 280,           // px
+      desiredRadiusMeters: 5      // show current lat/lon; lock to captured location
+    };
 
-    const music = document.getElementById('music');
+    // If you place GIFs next to this file, set paths here. If missing, a fallback sparkle appears.
+    const GIFS = ['1.gif','2.gif','2.gif'];
 
-    let stream = null;
-    let rafId = null;
+    const state = {
+      stableCount: 0,
+      locked: false,
+      isPlaying: false,
+      lockPos: null,
+      hasCamera: false,
+      hasLocation: false,
+      currentLat: null,
+      currentLon: null,
+      savedLat: null,
+      savedLon: null
+    };
 
-    // Lock data
-    let locked = false;
-    let lockTemplate = null; // Float32Array of downsampled grayscale (40x40)
-    let lockRectVideo = null; // Rect in video pixel coords {x, y, w, h}
-    let lockCenterNorm = { x: null, y: null }; // "latitude" and "longitude" (normalized 0..1)
-
-    // Gating based on similarity
-    let gateOk = false;
-    const SIM_THRESHOLD = 0.18; // lower is more similar, tuned experimentally
-
-    // Sequence (GIFs then Music)
-    const sequence = [
-      { src: 'gif1.gif', durationMs: 4000 },
-      { src: 'gif2.gif', durationMs: 4000 },
-      { src: 'gif2.gif', durationMs: 4000 }
-    ];
-    let seqIndex = 0;
-    let seqRemaining = sequence.length ? sequence[0].durationMs : 0;
-    let lastTick = 0;
-
-    // Global End Timer (15s after lock)
-    let endTimer = null;
-    const SESSION_MS = 15000;
-
-    function fmt(n) { return (Math.round(n * 1000) / 1000).toFixed(3); }
-
-    function getContainerRects() {
-      const appRect = document.getElementById('app').getBoundingClientRect();
-      const videoRect = video.getBoundingClientRect();
-      const frameRect = guideFrame.getBoundingClientRect();
-      return { appRect, videoRect, frameRect };
+    function showToast(msg, ms=1500){
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(()=>toast.classList.remove('show'), ms);
     }
 
-    function mapFrameToVideo() {
-      // Map the displayed frame rectangle into video pixel coordinates
-      const videoW = video.videoWidth || 640;
-      const videoH = video.videoHeight || 480;
-      const { appRect, videoRect, frameRect } = getContainerRects();
-
-      const scale = Math.min(appRect.width / videoW, appRect.height / videoH);
-      const displayedW = videoW * scale;
-      const displayedH = videoH * scale;
-      const offsetX = (appRect.width - displayedW) / 2 + appRect.left;
-      const offsetY = (appRect.height - displayedH) / 2 + appRect.top;
-
-      // Frame edges in display coords -> to video coords
-      const fx0 = frameRect.left - offsetX;
-      const fy0 = frameRect.top - offsetY;
-      const fx1 = frameRect.right - offsetX;
-      const fy1 = frameRect.bottom - offsetY;
-
-      // Protect from negative due to letterboxing
-      const vx0 = Math.max(0, fx0 / scale);
-      const vy0 = Math.max(0, fy0 / scale);
-      const vx1 = Math.min(videoW, fx1 / scale);
-      const vy1 = Math.min(videoH, fy1 / scale);
-
-      return {
-        x: vx0,
-        y: vy0,
-        w: Math.max(1, vx1 - vx0),
-        h: Math.max(1, vy1 - vy0),
-        videoW, videoH
-      };
+    function showStatus(msg, ms=1200){
+      statusEl.textContent = msg;
+      statusEl.classList.add('show');
+      setTimeout(()=>statusEl.classList.remove('show'), ms);
     }
 
-    function toGrayDownsample(srcCtxRect) {
-      // Draw from video to processing canvas at small size, then extract ROI scaled to roi canvas (40x40)
-      const { x, y, w, h } = srcCtxRect;
-      // Draw current video frame into processing canvas at native video size
-      const vw = video.videoWidth || 640;
-      const vh = video.videoHeight || 480;
-      proc.width = vw;
-      proc.height = vh;
-      ctx.drawImage(video, 0, 0, vw, vh);
+    function setBadges(){
+      camBadge.textContent = 'Camera: ' + (state.hasCamera ? 'On' : 'Off');
+      geoBadge.textContent = 'Location: ' + (state.hasLocation ? 'On' : 'Off');
+    }
 
-      // Extract ROI region and downsample to 40x40
-      const targetW = roi.width;
-      const targetH = roi.height;
-      rctx.clearRect(0, 0, targetW, targetH);
-      rctx.drawImage(proc, x, y, w, h, 0, 0, targetW, targetH);
-      const data = rctx.getImageData(0, 0, targetW, targetH).data;
-      const gray = new Float32Array(targetW * targetH);
-      for (let i = 0, j = 0; i < data.length; i += 4, j++) {
-        // luma
-        const g = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-        gray[j] = g / 255;
+    function metersBetween(lat1, lon1, lat2, lon2){
+      const R = 6371000;
+      const toRad = d => d*Math.PI/180;
+      const dLat = toRad(lat2-lat1);
+      const dLon = toRad(lon2-lon1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+      return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // Geo
+    function requestGeo(){
+      if(!('geolocation' in navigator)){
+        showToast('Geolocation not supported', 2000);
+        return;
       }
-      return gray;
+      navigator.geolocation.getCurrentPosition(
+        (pos)=>{
+          const { latitude, longitude } = pos.coords;
+          state.currentLat = latitude;
+          state.currentLon = longitude;
+          state.savedLat = latitude; // lock desired to actual
+          state.savedLon = longitude;
+          state.hasLocation = true;
+          locText.textContent = 'Loc: ' + latitude.toFixed(6) + ', ' + longitude.toFixed(6);
+          setBadges();
+          showStatus('Location enabled');
+        },
+        (err)=>{
+          state.hasLocation = false;
+          setBadges();
+          showToast('Enable location to continue', 1800);
+        },
+        { enableHighAccuracy:true, timeout:8000, maximumAge:0 }
+      );
+      // Watch position to update pill
+      try{
+        navigator.geolocation.watchPosition((pos)=>{
+          state.currentLat = pos.coords.latitude;
+          state.currentLon = pos.coords.longitude;
+          locText.textContent = 'Loc: ' + state.currentLat.toFixed(6) + ', ' + state.currentLon.toFixed(6);
+        });
+      }catch{}
     }
 
-    function meanAbsDiff(a, b) {
-      if (!a || !b || a.length !== b.length) return 1;
-      let sum = 0;
-      for (let i = 0; i < a.length; i++) {
-        sum += Math.abs(a[i] - b[i]);
-      }
-      return sum / a.length; // normalized 0..1
-    }
-
-    function updateBellEnabled() {
-      // Enable bell when the current frame inside the guide frame is sufficiently stable compared to a rolling baseline
-      // For simplicity, enable bell whenever the frame has "enough detail" (variance) → here, we just ensure it’s not blank
-      const rect = mapFrameToVideo();
-      const gray = toGrayDownsample(rect);
-      let mean = 0, varsum = 0;
-      for (let i = 0; i < gray.length; i++) mean += gray[i];
-      mean /= gray.length;
-      for (let i = 0; i < gray.length; i++) { const d = gray[i] - mean; varsum += d * d; }
-      const variance = varsum / gray.length;
-      // Simple heuristic: variance above threshold means there’s real content
-      const ok = variance > 0.005; // experimentally reasonable
-      bellBtn.disabled = !ok;
-      setConfIndicator(ok);
-    }
-
-    function setConfIndicator(ok) {
-      let el = document.getElementById('confInd');
-      if (!el) {
-        el = document.createElement('div');
-        el.className = 'confidence';
-        el.id = 'confInd';
-        el.innerHTML = '<span class="dot"></span><span id="confText">Aligning...</span>';
-        statusBox.appendChild(el);
-      }
-      const dot = el.querySelector('.dot');
-      const txt = el.querySelector('#confText');
-      if (ok) { dot.classList.add('ok'); txt.textContent = 'Ready: tap the bell'; }
-      else    { dot.classList.remove('ok'); txt.textContent = 'Aligning...'; }
-    }
-
-    async function startCamera() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false
+    // Camera
+    async function startCamera(){
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} },
+          audio:false
         });
         video.srcObject = stream;
+        await new Promise(r=> video.onloadedmetadata = r);
         await video.play();
-        startWrap.style.display = 'none';
-        centerUi.style.display = 'grid';
-        statusBox.style.display = 'block';
-        bellBtn.style.display = 'inline-flex';
-        loopAlign();
-      } catch (err) {
-        alert('Camera access failed. Please allow camera permission.');
-        console.error(err);
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        state.hasCamera = true;
+        setBadges();
+        showStatus('Camera started');
+        requestAnimationFrame(loop);
+      }catch(err){
+        state.hasCamera = false;
+        setBadges();
+        showToast('Camera permission needed', 1800);
       }
     }
 
-    function loopAlign() {
-      // While not locked, keep enabling/disabling the bell based on content in the frame region
-      if (locked) return;
-      updateBellEnabled();
-      rafId = requestAnimationFrame(loopAlign);
-    }
+    // Detection (simple)
+    function loop(){
+      if(state.locked) return;
+      if(!video.videoWidth) return requestAnimationFrame(loop);
 
-    function lockAndStart() {
-      if (locked) return;
-      // Record lock template and center "lat/long"
-      const rect = mapFrameToVideo();
-      lockRectVideo = rect;
-      lockTemplate = toGrayDownsample(rect);
-      lockCenterNorm = {
-        x: (rect.x + rect.w / 2) / rect.videoW,
-        y: (rect.y + rect.h / 2) / rect.videoH
-      };
-      latlngBox.textContent = `Lat: ${fmt(lockCenterNorm.x)} , Long: ${fmt(lockCenterNorm.y)}`;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Size and place overlay to match frame rect on screen
-      positionOverlayToFrame();
+      // Area under frame
+      const vr = video.getBoundingClientRect();
+      const fr = frame.getBoundingClientRect();
+      const x = ((fr.left - vr.left) / vr.width) * canvas.width;
+      const y = ((fr.top  - vr.top)  / vr.height)* canvas.height;
+      const w = (fr.width / vr.width) * canvas.width;
+      const h = (fr.height/ vr.height)* canvas.height;
 
-      // Prime audio in user gesture context so it can play later
-      try { music.play().then(() => { music.pause(); music.currentTime = 0; }).catch(()=>{}); } catch(e){}
-
-      locked = true;
-      // Update UI
-      statusBox.innerHTML = `<div><strong>Locked</strong> — Hold steady to play</div><div class="small">Lat: ${fmt(lockCenterNorm.x)} , Long: ${fmt(lockCenterNorm.y)}</div>`;
-      centerUi.style.display = 'none'; // Hide the big frame lines once locked (overlay remains sized the same)
-      bellBtn.disabled = true;
-
-      // Start global end timer (absolute 15 seconds)
-      endTimer = setTimeout(endSession, SESSION_MS);
-
-      // Start sequence flow, controlled by gating
-      seqIndex = 0;
-      seqRemaining = sequence.length ? sequence[0].durationMs : 0;
-      lastTick = performance.now();
-      overlay.style.display = 'block';
-      overlayImg.src = (sequence[0] && sequence[0].src) || '';
-      sequenceLoop();
-      gateLoop();
-    }
-
-    function positionOverlayToFrame() {
-      // Match overlay box to guideFrame’s display rect
-      const frameRect = guideFrame.getBoundingClientRect();
-      const appRect = document.getElementById('app').getBoundingClientRect();
-      // Set overlay size and position exactly on top of frame
-      overlay.style.left = `${frameRect.left - appRect.left}px`;
-      overlay.style.top = `${frameRect.top - appRect.top}px`;
-      overlay.style.width = `${frameRect.width}px`;
-      overlay.style.height = `${frameRect.height}px`;
-    }
-
-    function gateLoop() {
-      if (!locked) return;
-      const current = toGrayDownsample(lockRectVideo);
-      const diff = meanAbsDiff(current, lockTemplate);
-      const ok = diff <= SIM_THRESHOLD;
-      gateOk = ok;
-
-      // Show/hide overlay and pause/resume music depending on gate
-      if (ok) {
-        overlay.style.visibility = 'visible';
-        // music will start later after GIFs; if already started, ensure it's playing
-        if (musicStarted) {
-          music.play().catch(()=>{});
+      let ok = false;
+      try{
+        const imageData = ctx.getImageData(x,y,w,h);
+        const data = imageData.data;
+        let brightness = 0;
+        for(let i=0;i<data.length;i+=4){
+          brightness += (data[i] + data[i+1] + data[i+2]) / 3;
         }
-      } else {
-        overlay.style.visibility = 'hidden';
-        if (musicStarted) {
-          try { music.pause(); } catch(e){}
+        brightness /= (data.length/4);
+        // heuristic band
+        ok = brightness > 50 && brightness < 200;
+      }catch{ ok = false; }
+
+      if(ok){
+        state.stableCount++;
+        if(state.stableCount >= CONFIG.stableFrames){
+          bell.classList.add('visible');
         }
+      }else{
+        state.stableCount = 0;
+        bell.classList.remove('visible');
       }
 
-      // Keep adjusting overlay position in case viewport layout changes
-      positionOverlayToFrame();
-
-      requestAnimationFrame(gateLoop);
+      requestAnimationFrame(loop);
     }
 
-    let musicStarted = false;
+    // Music
+    let audioCtx = null, osc = null, gain = null;
+    async function startMusic(){
+      try{
+        bgMusic.currentTime = 0;
+        await bgMusic.play();
+      }catch{
+        // Fallback soft tone if no mp3
+        try{
+          if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          osc = audioCtx.createOscillator();
+          gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 432; // calm
+          gain.gain.value = 0.06;
+          osc.connect(gain).connect(audioCtx.destination);
+          osc.start();
+        }catch{}
+      }
+    }
+    function stopMusic(){
+      try{ bgMusic.pause(); }catch{}
+      try{
+        if(osc){ osc.stop(); osc.disconnect(); osc = null; }
+        if(gain){ gain.disconnect(); gain = null; }
+      }catch{}
+    }
 
-    function sequenceLoop(now) {
-      if (!locked) return;
-      if (typeof now !== 'number') now = performance.now();
-      const dt = now - lastTick;
-      lastTick = now;
+    // Flower rain (no smoke, no aarti)
+    function flowerEmoji(){
+      const set = ['🌸','🌸','💮','🌸','💮','💮'];
+      return set[(Math.random()*set.length)|0];
+    }
+    function burstFlowers(ms=CONFIG.flowersBurstDuration, count=CONFIG.flowersBurstCount){
+      const stage = document.getElementById('stage');
+      const start = performance.now();
+      let spawned = 0;
 
-      // Only count down when gate is OK
-      if (gateOk && sequence.length > 0 && seqIndex < sequence.length) {
-        seqRemaining -= dt;
-        if (seqRemaining <= 0) {
-          // Advance to next GIF
-          seqIndex++;
-          if (seqIndex < sequence.length) {
-            overlayImg.src = sequence[seqIndex].src;
-            seqRemaining = sequence[seqIndex].durationMs;
-          } else {
-            // All GIFs done: start music (plays only when gate OK)
-            if (!musicStarted) {
-              musicStarted = true;
-              // Attempt to play; if gate is OK it should play; else will be paused until gateOk again
-              music.play().catch(()=>{});
-            }
+      function spawnOne(){
+        const d = document.createElement('div');
+        d.className = 'flower';
+        d.textContent = flowerEmoji();
+        d.style.left = (Math.random()*100) + 'vw';
+        d.style.fontSize = (24 + Math.random()*12) + 'px';
+        d.style.animationDuration = (2.6 + Math.random()*2.0) + 's';
+        stage.appendChild(d);
+        setTimeout(()=>d.remove(), 4200);
+      }
+
+      function tick(now){
+        if(now - start < ms && spawned < count){
+          // spawn fast
+          for(let i=0;i<4;i++){
+            spawnOne(); spawned++;
+            if(spawned >= count) break;
           }
+          requestAnimationFrame(tick);
         }
       }
-
-      // If no GIFs defined, start music immediately after lock when gate is OK
-      if (sequence.length === 0 && gateOk && !musicStarted) {
-        musicStarted = true;
-        music.play().catch(()=>{});
-      }
-
-      requestAnimationFrame(sequenceLoop);
+      requestAnimationFrame(tick);
     }
 
-    function stopStream() {
-      if (stream) {
-        for (const t of stream.getTracks()) t.stop();
+    // GIF sequence (with fallback)
+    async function playGifsAtLocked(){
+      const overlay = document.createElement('img');
+      overlay.className = 'overlay';
+      document.body.appendChild(overlay);
+
+      const setOverlayRect = ()=>{
+        if(!state.lockPos) return;
+        overlay.style.left = (state.lockPos.x - state.lockPos.w/2) + 'px';
+        overlay.style.top  = (state.lockPos.y - state.lockPos.h/2) + 'px';
+        overlay.style.width = state.lockPos.w + 'px';
+        overlay.style.height= state.lockPos.h + 'px';
+      };
+      setOverlayRect();
+
+      // fallback node
+      const fallback = document.createElement('div');
+      fallback.className = 'overlay';
+      fallback.style.display = 'none';
+      fallback.style.backdropFilter = 'blur(2px)';
+      fallback.style.background = 'linear-gradient(135deg, rgba(246,196,69,.2), rgba(255,122,26,.2))';
+      fallback.style.color = '#fff';
+      fallback.style.fontSize = '42px';
+      fallback.style.display = 'grid';
+      fallback.style.placeItems = 'center';
+      fallback.textContent = '✨';
+      document.body.appendChild(fallback);
+      const setFallbackRect = ()=>{
+        if(!state.lockPos) return;
+        fallback.style.left = (state.lockPos.x - state.lockPos.w/2) + 'px';
+        fallback.style.top  = (state.lockPos.y - state.lockPos.h/2) + 'px';
+        fallback.style.width = state.lockPos.w + 'px';
+        fallback.style.height= state.lockPos.h + 'px';
+      };
+      setFallbackRect();
+
+      const runOne = (src)=> new Promise((resolve)=>{
+        let shown = false;
+        overlay.onload = ()=>{
+          fallback.style.display = 'none';
+          overlay.classList.add('show');
+          shown = true;
+          setTimeout(()=>resolve(), CONFIG.gifDuration);
+        };
+        overlay.onerror = ()=>{
+          overlay.classList.remove('show');
+          // fallback sparkle
+          fallback.style.display = 'block';
+          setTimeout(()=>resolve(), CONFIG.gifDuration);
+        };
+        overlay.src = src + '?t=' + Date.now(); // bust cache
+      });
+
+      // loop forever while locked
+      state.isPlaying = true;
+      while(state.locked){
+        for(const src of GIFS){
+          await runOne(src);
+          setOverlayRect(); setFallbackRect();
+          if(!state.locked) break;
+        }
       }
-      video.srcObject = null;
+      overlay.remove();
+      fallback.remove();
     }
 
-    function endSession() {
-      locked = false;
-      if (rafId) cancelAnimationFrame(rafId);
-      try { music.pause(); } catch(e){}
-      stopStream();
-      overlay.style.display = 'none';
-      bellBtn.disabled = true;
+    // Bell
+    bell.addEventListener('click', async ()=>{
+      if(state.locked) return;
 
-      const lat = lockCenterNorm.x != null ? fmt(lockCenterNorm.x) : '-';
-      const lng = lockCenterNorm.y != null ? fmt(lockCenterNorm.y) : '-';
-      summary.textContent = `Locked at Lat ${lat} , Long ${lng}`;
-      endWrap.style.display = 'grid';
-    }
+      // ensure we display at saved location (just record now)
+      state.savedLat = state.currentLat;
+      state.savedLon = state.currentLon;
 
-    // Wire up events
-    startBtn.addEventListener('click', startCamera);
-    bellBtn.addEventListener('click', lockAndStart);
+      // lock UI position (center of frame on screen)
+      const vr = video.getBoundingClientRect();
+      const fr = frame.getBoundingClientRect();
+      state.lockPos = {
+        x: fr.left - vr.left + fr.width/2,
+        y: fr.top  - vr.top  + fr.height/2,
+        w: Math.min(fr.width, CONFIG.overlaySize),
+        h: Math.min(fr.height, CONFIG.overlaySize),
+      };
 
-    // Handle resize/orientation to keep overlay aligned
-    window.addEventListener('resize', () => {
-      if (locked) positionOverlayToFrame();
+      state.locked = true;
+      bell.classList.remove('visible');
+      frame.classList.add('hidden');
+      hint.classList.add('hidden');
+
+      showStatus('Starting', 900);
+      await startMusic();
+
+      // big flower rain
+      burstFlowers();
+
+      // then gifs
+      playGifsAtLocked();
     });
-    window.addEventListener('orientationchange', () => {
-      setTimeout(() => { if (locked) positionOverlayToFrame(); }, 250);
+
+    // Start button
+    btnGo.addEventListener('click', async ()=>{
+      requestGeo();
+      await startCamera();
+      startScreen.style.display = 'none';
     });
 
-    // Prevent scroll bounce on mobile
-    document.addEventListener('touchmove', (e) => {
-      if (!e.target.closest('.start-wrap') && !e.target.closest('.end-wrap')) {
-        e.preventDefault();
+    btnLocOnly.addEventListener('click', ()=>{
+      requestGeo();
+      showStatus('Requesting location…');
+    });
+
+    // Resume music on visibility change
+    document.addEventListener('visibilitychange', ()=>{
+      if(document.hidden){ stopMusic(); }
+      else if(state.locked){ startMusic(); }
+    });
+
+    // Resize handler updates canvas and keeps UI sensible
+    window.addEventListener('resize', ()=>{
+      if(video.videoWidth){
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
       }
-    }, { passive: false });
+    });
 
-    // Fail-safe if media not found
-    overlayImg.addEventListener('error', () => {
-      // If GIF missing, just keep element blank without crashing
-      overlayImg.style.background = 'rgba(0,0,0,0.25)';
-    });
-    music.addEventListener('error', () => {
-      // Fail silently if music is missing
-    });
+    // Small periodic check to ensure the overlay is used at saved lat/lon (displayed pill)
+    setInterval(()=>{
+      if(state.savedLat!=null && state.currentLat!=null){
+        const d = metersBetween(state.savedLat, state.savedLon, state.currentLat, state.currentLon);
+        // display a quiet badge if moved away
+        if(d > CONFIG.desiredRadiusMeters){
+          showStatus('Stay near your saved location', 800);
+        }
+      }
+    }, 4000);
   </script>
 </body>
 </html>
