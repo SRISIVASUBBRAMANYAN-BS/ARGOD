@@ -32,7 +32,7 @@
         display:inline-block; font-weight:800; letter-spacing:0.04em; text-transform:uppercase;
         font-size: clamp(18px, 4.5vw, 28px); padding:8px 14px; border-radius:999px;
         background:rgba(14,165,233,0.18); border:1px solid rgba(14,165,233,0.35); color:#e6f6ff; text-shadow:0 1px 0 rgba(0,0,0,.4);
-        box-shadow:0 0 24px rgba(14,165,233,0.25) inset, 0 8px 30px rgba(14,165,233,0.1);
+        box-shadow:0 0 24px rgba(14,165,233,.25) inset, 0 8px 30px rgba(14,165,233,0.1);
       }
       .status{
         pointer-events:none; text-align:center; color:var(--muted); font-size:14px; margin:8px 0 0;
@@ -48,6 +48,8 @@
         padding:14px 18px; border-radius:12px; box-shadow: 0 10px 30px rgba(14,165,233,.35);
       }
       .btn:active{ transform:translateY(1px); }
+      .btn.bell{ display:none; align-items:center; gap:8px; }
+      .btn.bell svg{ width:18px; height:18px; }
 
       /* Guide frame while scanning */
       .guide{
@@ -61,17 +63,10 @@
         will-change: transform, width, height, opacity; opacity:0; transition:opacity .35s ease;
       }
       .ar-layer.active{ opacity:1; }
-      .gif-stack{
-        position:absolute; inset:0; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:8px; padding:8px;
-        mix-blend-mode:screen;
+      .ar-layer img.gif{
+        position:absolute; inset:0; width:100%; height:100%;
+        object-fit:cover; display:none; border-radius:10px; background:rgba(0,0,0,.2);
       }
-      .gif-card{
-        position:relative; border-radius:10px; overflow:hidden; background:rgba(245,158,11,.12);
-        border:1px solid rgba(245,158,11,.35); box-shadow: 0 10px 40px rgba(245,158,11,.25);
-      }
-      canvas.gif{position:absolute; inset:0; width:100%; height:100%;}
-      /* Make one big canvas spanning two cells to feel dynamic */
-      .gif-card.big{ grid-column:1 / span 2; grid-row:1 / span 1; }
 
       /* End screen */
       .end{
@@ -111,29 +106,33 @@
 
        Hidden target reference image (for detection) 
       <img id="refImg" alt="Target reference" crossOrigin="anonymous"
-           src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-NuVXrTuFsxHVBwJWfVMGwayZYMcrBv.png"
+           src="graphite-target.png"
            style="position:absolute; left:-9999px; top:-9999px; width:320px; height:auto;" />
 
        UI HUD 
       <div class="hud">
         <header>
-          <div class="title">Welcome to GRAPHITE SKETCH</div>
-          <div class="status" id="status">Tap Start to allow back camera + audio. Then point at the reference image.</div>
+          <div class="title">Welcome to Deccaanow corp</div>
+          <div class="status" id="status">Tap Start to allow back camera. Then point at the image.</div>
         </header>
         <div class="guide" id="guide"></div>
         <div class="controls">
           <button class="btn" id="startBtn">Start AR</button>
           <button class="btn" id="stopBtn" style="display:none;">Stop</button>
+          <button class="btn bell" id="bellBtn" aria-label="Ring bell to start">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2a1 1 0 0 1 1 1v.28a7 7 0 0 1 5 6.72v3.3l1.38 2.77A1 1 0 0 1 18.5 18h-13a1 1 0 0 1-.88-1.43L6 13.3V10a7 7 0 0 1 5-6.72V3a1 1 0 0 1 1-1Zm0 20a3 3 0 0 1-3-3h6a3 3 0 0 1-3 3Z"/>
+            </svg>
+            Bell
+          </button>
         </div>
       </div>
 
        AR Overlay (anchored where the image is detected) 
       <div class="ar-layer" id="arLayer" aria-hidden="true">
-        <div class="gif-stack">
-          <div class="gif-card big"><canvas class="gif" id="gif1"></canvas></div>
-          <div class="gif-card"><canvas class="gif" id="gif2"></canvas></div>
-          <div class="gif-card"><canvas class="gif" id="gif3"></canvas></div>
-        </div>
+        <img id="gif1" class="gif" src="1.gif" alt="" />
+        <img id="gif2" class="gif" src="2.gif" alt="" />
+        <img id="gif3" class="gif" src="3.gif" alt="" />
       </div>
 
        End Screen 
@@ -151,8 +150,7 @@
 
        Background audio 
       <audio id="bgm" preload="auto">
-         Replace with your music file 
-        <source src="song.mp3" type="audio/mp4" />
+        <source src="song.mp3" type="audio/mpeg" />
       </audio>
     </div>
 
@@ -177,12 +175,18 @@
       const arLayer = document.getElementById('arLayer');
       const guide = document.getElementById('guide');
       const bgm = document.getElementById('bgm');
+      const bellBtn = document.getElementById('bellBtn');
+      const gif1 = document.getElementById('gif1');
+      const gif2 = document.getElementById('gif2');
+      const gif3 = document.getElementById('gif3');
 
       let stream = null;
       let rafId = null;
       let scanning = false;
       let locked = false;
       let consecutiveHits = 0;
+      let playing = false;
+      let missFrames = 0;
 
       async function startCamera(){
         try{
@@ -316,137 +320,115 @@
         setTimeout(()=>s.remove(),800);
       }
 
-      // ---- GIF decoding + 0.5x speed playback (using a tiny embedded GIF decoder) ----
-      // Minimal omggif decoder (stripped to get frames + delays into RGBA).
-      // Source: https://github.com/deanm/omggif (MIT). Inlined and compact for this use.
-      // <CHANGE> Embedded lightweight GIF decoder to control playback rate for GIFs
-      // BEGIN omggif (minimized essentials)
-      (function(global){function l(a){this.data=a;this.pos=0}l.prototype.readByte=function(){return this.data[this.pos++]};l.prototype.readBytes=function(a){var b=this.data.subarray(this.pos,this.pos+a);this.pos+=a;return b};l.prototype.readUShort=function(){var a=this.data[this.pos++]|this.data[this.pos++]<<8;return a};l.prototype.readString=function(a){a=this.readBytes(a);var b="";for(var c=0;c<a.length;c++)b+=String.fromCharCode(a[c]);return b};function m(a){this.width=0;this.height=0;this.frames=[];this.bgColor=0;this.loopCount=null;this.parse(a)}m.prototype.parse=function(a){a=new l(new Uint8Array(a));if("GIF"!==a.readString(3))throw Error("Not a GIF file.");a.readString(3);this.width=a.readUShort();this.height=a.readUShort();var b=a.readByte(),c=(b&128)?1<<((b&7)+1):0;this.bgColor=a.readByte();a.readByte();var d=null;c&&(d=a.readBytes(3*c));for(;;){var e=a.readByte();if(33===e){e=a.readByte();if(249===e){a.readByte();var f=a.readByte(),g=a.readUShort();a.readByte();a.readByte();this._gce={disposal:(f>>2)&7,transIndex:null!==null?null:null,delay:g*10}}else if(255===e){var h=a.readByte();if(11===h){var k=a.readString(11);if("NETSCAPE2.0"===k){a.readByte();a.readByte();this.loopCount=a.readUShort();a.readByte() }else{for(;0!==a.readByte();)a.readBytes(a.readByte())}}else{a.readBytes(h);for(;0!==a.readByte();)a.readBytes(a.readByte())}}else{for(;0!==a.readByte();)a.readBytes(a.readByte())}}else if(44===e){var n={};n.x=a.readUShort();n.y=a.readUShort();n.w=a.readUShort();n.h=a.readUShort();var p=a.readByte();n.lct=(p&128)?1<<((p&7)+1):0;n.interlaced=!!(p&64);var q=n.lct?a.readBytes(3*n.lct):d;var r=a.readByte();var t=[],u=function(){var x=a.readByte();if(0===x)return null;return a.readBytes(x)};for(var v=u();null!==v;v=u())for(var y=0;y<v.length;y++)t.push(v[y]);n.pixels= w(new Uint8Array(t),r,n.w*n.h);n.delay=this._gce?this._gce.delay:100;this.frames.push({x:n.x,y:n.y,w:n.w,h:n.h,delay:n.delay,interlaced:n.interlaced,colors:q,pixels:n.pixels});this._gce=null}else if(59===e){break}else{throw Error("Unknown block: "+e);}}};function w(a,b,c){var d=1<<b;var e=d+1;var f=d+2;var g=null;var h=0;var k=0;var n=0;var p=0;var S=function(z,C){for(var D=0;D<C;D++){n|=a[p++]<<h;h+=8;for(;;){if(k<C){var E=n&(1<<b)-1;n>>=b;h-=b;C=k}break}}};var q=[];var r=[];for(var t=0;t<d;t++){q[t]=[];q[t].push(t);r[t]=t}var u=[],v=b+1,y=(1<<v)-1,A=f;var B=[];for(;;){if(p>=a.length)break;g=n&(1<<v)-1;n>>=v;h-=v;if(g===d){v=b+1;y=(1<<v)-1;A=f;u=[];continue}if(g===e)break;var F;if(g<A){F=q[g].slice(0)}else if(g===A&&u.length){F=u.slice(0);F.push(u[0])}else{continue}for(var G=0;G<F.length;G++)B.push(F[G]);if(u.length){q[A]=u.slice(0);q[A].push(F[0]);A++;if(A===1<<v&&v<12){v++;y=(1<<v)-1}}u=F}return B.slice(0,c)}
-      function decodeGIFToCanvas(ctx, frame, palette){
-        const {w,h,pixels} = frame;
-        const img = ctx.createImageData(w,h);
-        const data = img.data;
-        for(let i=0;i<pixels.length;i++){
-          const pi = pixels[i];
-          const r = palette[3*pi], g = palette[3*pi+1], b = palette[3*pi+2];
-          const j = i*4;
-          data[j]=r; data[j+1]=g; data[j+2]=b; data[j+3]=255;
-        }
-        ctx.putImageData(img,0,0);
-      }
-      global._GIF = {GifReader:m, decodeGIFToCanvas};
-      })(window);
-      // END omggif
-
-      // Wrapper class: play a GIF at 0.5x on a canvas
-      class GifPlayer {
-        constructor(canvas, url, playback=0.5){
-          this.canvas = canvas;
-          this.url = url;
-          this.playback = playback; // 0.5x = slower
-          this.ctx = canvas.getContext('2d');
-          this.frames = [];
-          this.pal = null;
-          this.idx = 0;
-          this.timer = null;
-        }
-        async load(){
-          const res = await fetch(this.url);
-          const buf = await res.arrayBuffer();
-          const reader = new _GIF.GifReader(buf);
-          // Use global palette per frame
-          for(const fr of reader.frames){
-            this.frames.push(fr);
-            if(!this.pal) this.pal = fr.colors;
-          }
-          const w = this.frames[0].w, h = this.frames[0].h;
-          this.canvas.width = w; this.canvas.height = h;
-        }
-        start(){
-          const step = ()=>{
-            const fr = this.frames[this.idx];
-            _GIF.decodeGIFToCanvas(this.ctx, fr, this.pal);
-            const delay = Math.max(20, fr.delay||100); // ms per frame
-            const slowed = delay / (this.playback||1); // 0.5 => delay/0.5 = 2x slower
-            this.idx = (this.idx+1)%this.frames.length;
-            this.timer = setTimeout(step, slowed);
-          };
-          step();
-        }
-        stop(){ if(this.timer){ clearTimeout(this.timer); this.timer=null; } }
-      }
-
-      // ---- GIF players (three gifs) ----
-      // Replace these paths with your .gif files (place them relative to index.html)
-      const GIFS = [
-        { id:'gif1', src:'1.gif' },
-        { id:'gif2', src:'2.gif' },
-        { id:'gif3', src:'3.gif' },
-      ];
-      const players = [];
-
-      async function loadGifs(){
-        // init players
-        for(const g of GIFS){
-          const cv = document.getElementById(g.id);
-          const p = new GifPlayer(cv, g.src, 0.5);
-          await p.load();
-          players.push(p);
-        }
-      }
-      function startGifs(){ players.forEach(p=>p.start()); }
-      function stopGifs(){ players.forEach(p=>p.stop()); }
-
       // ---- AR Flow ----
       async function startAR(){
         sayWelcome();
         startBtn.style.display='none';
         stopBtn.style.display='inline-block';
-        statusEl.textContent = "Initializing camera and audio...";
-        await Promise.all([startCamera(), prepareTemplate(), loadGifs()]);
+        statusEl.textContent = "Initializing camera...";
+        await Promise.all([startCamera(), prepareTemplate()]);
         statusEl.textContent = "Point your camera at the reference image.";
         guide.style.borderColor = 'rgba(14,165,233,.45)';
 
-        // Play background music on user gesture
-        try{ bgm.currentTime = 0; await bgm.play(); }catch(e){}
-        bgm.onended = endAR;
+        bgm.onended = null;
 
         scanning = true;
         locked = false;
+        bellBtn.style.display = 'none';
+        playing = false;
+        missFrames = 0;
+        arLayer.classList.remove('active');
         scanLoop();
       }
 
       function scanLoop(){
         if(!scanning) return;
         const match = findTarget();
-        // Update overlay position & lock if score strong
+
         if(match.score > 0.86){
           consecutiveHits++;
-          // anchor overlay
           arLayer.style.transform = `translate(${match.left}px, ${match.top}px)`;
           arLayer.style.width = `${match.width}px`;
           arLayer.style.height = `${match.height}px`;
+
           if(!locked && consecutiveHits>=3){
             locked = true;
-            arLayer.classList.add('active');
-            startGifs();
-            statusEl.textContent = "Target locked. Enjoy the experience.";
-            // Sparkle
-            showSpark(match.left+match.width/2, match.top+match.height/2);
+            bellBtn.style.display = 'inline-flex';
+            bellBtn.disabled = false;
+            statusEl.textContent = "Target found. Tap the bell to start GIFs and music.";
           }
-        }else{
+          if(playing){
+            arLayer.classList.add('active');
+            missFrames = 0;
+          }
+        } else {
           consecutiveHits = 0;
           if(!locked){
             arLayer.classList.remove('active');
+            bellBtn.style.display = 'none';
+          }
+          if(playing){
+            missFrames++;
+            if(missFrames > 8){
+              arLayer.classList.remove('active');
+              statusEl.textContent = "Target lost. Keep the image in view to see the overlay.";
+            }
           }
         }
+
         rafId = requestAnimationFrame(scanLoop);
       }
 
-      function endAR(){
+      function finishOverlay(){
+        showOnly(null);
+        arLayer.classList.remove('active');
+        playing = false;
+        bellBtn.disabled = false;
+        statusEl.textContent = "Sequence finished. Align again to play once more.";
+      }
+
+      function showOnly(el){
+        [gif1, gif2, gif3].forEach(g=>{ g.style.display='none'; });
+        if(el) el.style.display='block';
+      }
+
+      // Hide GIF if missing file to avoid errors
+      [gif1, gif2, gif3].forEach(img=>{
+        img.addEventListener('error', ()=>{ img.style.display='none'; }, {passive:true});
+      })
+
+      bellBtn.addEventListener('click', async ()=>{
+        if(!locked || playing) return;
+        try{
+          bellBtn.disabled = true;
+          // Start background music
+          bgm.currentTime = 0;
+          await bgm.play();
+
+          // Start 3 GIFs sequentially (5s each = 15s total)
+          playing = true;
+          missFrames = 0;
+          statusEl.textContent = "Playing 3-part sequence…";
+          showOnly(gif1);
+          arLayer.classList.add('active');
+
+          setTimeout(()=> showOnly(gif2), 5000);
+          setTimeout(()=> showOnly(gif3), 10000);
+          setTimeout(()=> {
+            try{ bgm.pause(); }catch(e){}
+            finishOverlay();
+          }, 15000);
+
+        }catch(e){
+          bellBtn.disabled = false;
+          statusEl.textContent = "Unable to start media. Ensure sound is on and try again.";
+        }
+      });
+
+      function stopAR(){
         scanning = false;
         cancelAnimationFrame(rafId);
-        stopGifs();
+        try{ bgm.pause(); }catch(e){}
         arLayer.classList.remove('active');
         stopBtn.style.display='none';
         endScreen.classList.add('show');
@@ -454,23 +436,12 @@
         stopCamera();
       }
 
-      function stopAR(){
-        try{ bgm.pause(); }catch(e){}
-        endAR();
-      }
-
       function restart(){
         endScreen.classList.remove('show');
         startBtn.style.display='inline-block';
-        statusEl.textContent = "Tap Start to allow back camera + audio. Then point at the reference image.";
+        statusEl.textContent = "Tap Start to allow back camera. Then point at the image.";
       }
 
-      // ---- Bindings ----
-      startBtn.addEventListener('click', startAR);
-      stopBtn.addEventListener('click', stopAR);
-      restartBtn.addEventListener('click', restart);
-
-      // Prevent screen lock on mobile by keeping video playing; advise fullscreen
       document.addEventListener('visibilitychange', ()=>{
         if(document.visibilityState==='visible' && stream && video.paused){ video.play(); }
       }, {passive:true});
